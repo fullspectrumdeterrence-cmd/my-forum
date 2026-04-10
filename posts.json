@@ -1,0 +1,28 @@
+[
+  {
+    "text": "This is a test",
+    "author": "User 1",
+    "category": "General",
+    "replies": [
+      {
+        "text": "test this",
+        "author": "User 1"
+      },
+      {
+        "text": "second test",
+        "author": "User 1"
+      }
+    ]
+  },
+  {
+    "text": "Post",
+    "author": "User 1",
+    "category": "General",
+    "replies": [
+      {
+        "text": "Lets respond to this and check.",
+        "author": "User 1"
+      }
+    ]
+  }
+]
