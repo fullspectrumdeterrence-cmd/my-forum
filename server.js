@@ -6,7 +6,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 🔥 PASTE YOUR CONNECTION STRING HERE (replace password)
-const uri = "mongodb+srv://forumUser:Forum12345%21@cluster0.cbukuas.mongodb.net/?appName=Cluster0";
+const uri = process.env.MONGO_URI;
 
 const client = new MongoClient(uri);
 let db;
