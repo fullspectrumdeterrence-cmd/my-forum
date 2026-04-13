@@ -4,6 +4,9 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// =========================
+// DB CONNECTION
+// =========================
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
@@ -12,15 +15,16 @@ let db;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-
-// =========================
-// CONNECT DB
-// =========================
 async function connectDB() {
-  await client.connect();
-  db = client.db("forumDB");
-  console.log("✅ MongoDB connected");
+  try {
+    await client.connect();
+    db = client.db("forumDB");
+    console.log("✅ MongoDB connected");
+  } catch (err) {
+    console.error("❌ MongoDB error:", err);
+  }
 }
+
 connectDB();
 
 
@@ -69,26 +73,71 @@ app.post('/api/subforums', async (req, res) => {
 // =========================
 // THREADS
 // =========================
+
+// GET threads (sorted: pinned first)
 app.get('/api/threads/:subforumId', async (req, res) => {
   const data = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
-    .sort({ createdAt: -1 })
+    .sort({ pinned: -1, createdAt: -1 })
     .toArray();
 
   res.json(data);
 });
 
+// CREATE thread
 app.post('/api/threads', async (req, res) => {
   const thread = {
     title: req.body.title,
     subforumId: req.body.subforumId,
     author: req.body.author,
-    createdAt: new Date()
+    createdAt: new Date(),
+
+    // NEW FEATURES
+    pinned: false,
+    locked: false
   };
 
   const result = await db.collection('threads').insertOne(thread);
 
   res.json({ ...thread, _id: result.insertedId });
+});
+
+
+// =========================
+// PIN THREAD
+// =========================
+app.put('/api/threads/:id/pin', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { pinned: true } }
+  );
+
+  res.json({ success: true });
+});
+
+
+// =========================
+// LOCK THREAD
+// =========================
+app.put('/api/threads/:id/lock', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { locked: true } }
+  );
+
+  res.json({ success: true });
+});
+
+
+// =========================
+// DELETE THREAD
+// =========================
+app.delete('/api/threads/:id', async (req, res) => {
+  await db.collection('threads').deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
+
+  res.json({ success: true });
 });
 
 
@@ -105,10 +154,16 @@ app.get('/api/posts/:threadId', async (req, res) => {
 });
 
 app.post('/api/posts', async (req, res) => {
+  const { threadId, text, author } = req.body;
+
+  if (!threadId || !text || !author) {
+    return res.status(400).send("Missing data");
+  }
+
   const post = {
-    threadId: req.body.threadId,
-    text: req.body.text,
-    author: req.body.author,
+    threadId,
+    text,
+    author,
     createdAt: new Date()
   };
 
