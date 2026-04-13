@@ -191,6 +191,15 @@ app.post('/api/posts', async (req, res) => {
   res.json({ ...post, _id: result.insertedId });
 });
 
+app.get('/api/seed', async (req, res) => {
+  await db.collection('categories').insertMany([
+    { name: "General" },
+    { name: "News" },
+    { name: "Tech" }
+  ]);
+
+  res.send("Seeded categories");
+});
 
 // =========================
 // START SERVER
