@@ -31,23 +31,17 @@
 
 <hr>
 
-<!-- ===================== -->
 <!-- CATEGORY VIEW -->
-<!-- ===================== -->
 <div id="viewCategories"></div>
 
-<!-- ===================== -->
 <!-- SUBFORUM VIEW -->
-<!-- ===================== -->
 <div id="viewSubforums" class="hidden">
   <button onclick="backToCategories()">← Back</button>
   <h2 id="categoryTitle"></h2>
   <div id="subforums"></div>
 </div>
 
-<!-- ===================== -->
 <!-- THREAD VIEW -->
-<!-- ===================== -->
 <div id="viewThreads" class="hidden">
   <button onclick="backToSubforums()">← Back</button>
   <h2 id="subforumTitle"></h2>
@@ -58,9 +52,7 @@
   <div id="threads"></div>
 </div>
 
-<!-- ===================== -->
 <!-- POSTS VIEW -->
-<!-- ===================== -->
 <div id="viewPosts" class="hidden">
   <button onclick="backToThreads()">← Back</button>
 
@@ -87,6 +79,16 @@ let currentSubforum = null;
 let currentThread = null;
 
 // =====================
+// VIEW RESET (KEY FIX)
+// =====================
+function hideAllViews() {
+  document.getElementById('viewCategories').classList.add('hidden');
+  document.getElementById('viewSubforums').classList.add('hidden');
+  document.getElementById('viewThreads').classList.add('hidden');
+  document.getElementById('viewPosts').classList.add('hidden');
+}
+
+// =====================
 // USER
 // =====================
 const savedUser = localStorage.getItem("user");
@@ -100,6 +102,9 @@ function saveUser() {
 // LOAD CATEGORIES
 // =====================
 async function loadCategories() {
+  hideAllViews();
+  document.getElementById('viewCategories').classList.remove('hidden');
+
   categories = await (await fetch('/api/categories')).json();
 
   const div = document.getElementById('viewCategories');
@@ -109,9 +114,7 @@ async function loadCategories() {
     const el = document.createElement('div');
     el.className = 'box';
     el.innerText = c.name;
-
     el.onclick = () => openCategory(c);
-
     div.appendChild(el);
   });
 }
@@ -122,15 +125,15 @@ async function loadCategories() {
 async function openCategory(category) {
   currentCategory = category;
 
-  document.getElementById('viewCategories').classList.add('hidden');
+  hideAllViews();
   document.getElementById('viewSubforums').classList.remove('hidden');
 
   document.getElementById('categoryTitle').innerText = category.name;
 
-  subforums = await (await fetch(`/api/subforums/${category._id}`)).json();
-
   const div = document.getElementById('subforums');
   div.innerHTML = '';
+
+  subforums = await (await fetch(`/api/subforums/${category._id}`)).json();
 
   subforums.forEach(s => {
     const el = document.createElement('div');
@@ -147,10 +150,13 @@ async function openCategory(category) {
 async function openSubforum(subforum) {
   currentSubforum = subforum;
 
-  document.getElementById('viewSubforums').classList.add('hidden');
+  hideAllViews();
   document.getElementById('viewThreads').classList.remove('hidden');
 
   document.getElementById('subforumTitle').innerText = subforum.name;
+
+  const div = document.getElementById('threads');
+  div.innerHTML = '';
 
   threads = await (await fetch(`/api/threads/${subforum._id}`)).json();
 
@@ -164,6 +170,8 @@ async function createThread() {
   const title = document.getElementById('threadTitleInput').value;
   const author = document.getElementById('username').value;
 
+  if (!title || !author) return alert("Missing data");
+
   await fetch('/api/threads', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -174,6 +182,7 @@ async function createThread() {
     })
   });
 
+  document.getElementById('threadTitleInput').value = '';
   openSubforum(currentSubforum);
 }
 
@@ -189,7 +198,6 @@ function renderThreads() {
     el.className = 'box';
 
     el.innerHTML = `<b>${t.title}</b><br>by ${t.author}`;
-
     el.onclick = () => openThread(t);
 
     div.appendChild(el);
@@ -202,10 +210,13 @@ function renderThreads() {
 async function openThread(thread) {
   currentThread = thread;
 
-  document.getElementById('viewThreads').classList.add('hidden');
+  hideAllViews();
   document.getElementById('viewPosts').classList.remove('hidden');
 
   document.getElementById('threadTitle').innerText = thread.title;
+
+  const div = document.getElementById('posts');
+  div.innerHTML = '';
 
   posts = await (await fetch(`/api/posts/${thread._id}`)).json();
 
@@ -213,11 +224,13 @@ async function openThread(thread) {
 }
 
 // =====================
-// ADD POST (REPLY)
+// ADD POST
 // =====================
 async function addPost() {
   const text = document.getElementById('postText').value;
   const author = document.getElementById('username').value;
+
+  if (!text || !author) return alert("Missing data");
 
   await fetch('/api/posts', {
     method:'POST',
@@ -229,6 +242,7 @@ async function addPost() {
     })
   });
 
+  document.getElementById('postText').value = '';
   openThread(currentThread);
 }
 
@@ -242,18 +256,16 @@ function renderPosts() {
   posts.forEach(p => {
     const el = document.createElement('div');
     el.className = 'box';
-
     el.innerHTML = `<b>${p.author}</b>: ${p.text}`;
-
     div.appendChild(el);
   });
 }
 
 // =====================
-// BACK NAVIGATION
+// BACK NAVIGATION (FIXED)
 // =====================
 function backToCategories() {
-  location.reload();
+  loadCategories();
 }
 
 function backToSubforums() {
