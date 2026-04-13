@@ -4,7 +4,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MongoDB connection string (from Render env variable)
+// MongoDB connection string (Render env variable)
 const uri = process.env.MONGO_URI;
 
 const client = new MongoClient(uri);
@@ -14,7 +14,10 @@ let db;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Connect to MongoDB
+
+// =========================
+// CONNECT TO MONGODB
+// =========================
 async function connectDB() {
   try {
     await client.connect();
@@ -51,40 +54,70 @@ app.post('/api/posts', async (req, res) => {
     text,
     author,
     category,
-    replies: []
+    replies: [],
+    createdAt: new Date()
   };
 
   const result = await db.collection('posts').insertOne(post);
 
-  // return post WITH _id (important)
   res.json({ ...post, _id: result.insertedId });
 });
 
 
 // =========================
-// ADD REPLY (FIXED)
+// UPDATE POST (NEW)
+// =========================
+app.put('/api/posts/:id', async (req, res) => {
+  const { text } = req.body;
+
+  try {
+    await db.collection('posts').updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { text } }
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("❌ Update post error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+
+// =========================
+// DELETE POST (NEW)
+// =========================
+app.delete('/api/posts/:id', async (req, res) => {
+  try {
+    await db.collection('posts').deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("❌ Delete post error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+
+// =========================
+// ADD REPLY
 // =========================
 app.post('/api/posts/:id/replies', async (req, res) => {
   const { text, author } = req.body;
-  const postId = req.params.id;
 
   if (!text || !author) {
     return res.status(400).send('Missing data');
   }
 
   try {
-    const post = await db.collection('posts').findOne({
-      _id: new ObjectId(postId)
-    });
-
-    if (!post) {
-      return res.status(404).send('Post not found');
-    }
-
-    const newReply = { text, author };
+    const newReply = { text, author, createdAt: new Date() };
 
     await db.collection('posts').updateOne(
-      { _id: new ObjectId(postId) },
+      { _id: new ObjectId(req.params.id) },
       { $push: { replies: newReply } }
     );
 
