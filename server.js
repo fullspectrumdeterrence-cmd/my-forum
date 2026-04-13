@@ -45,11 +45,16 @@ app.post('/api/categories', async (req, res) => {
 // SUBFORUMS
 // =========================
 app.get('/api/subforums/:categoryId', async (req, res) => {
-  const data = await db.collection('subforums')
-    .find({ categoryId: req.params.categoryId })
-    .toArray();
+  try {
+    const data = await db.collection('subforums')
+      .find({ categoryId: req.params.categoryId.toString() })
+      .toArray();
 
-  res.json(data);
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error fetching subforums");
+  }
 });
 
 app.post('/api/subforums', async (req, res) => {
