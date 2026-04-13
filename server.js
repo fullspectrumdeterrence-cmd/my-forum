@@ -25,37 +25,90 @@ connectDB();
 
 
 // =========================
-// GET POSTS
+// CATEGORIES
 // =========================
-app.get('/api/posts', async (req, res) => {
-  const posts = await db.collection('posts').find().sort({ createdAt: -1 }).toArray();
-  res.json(posts);
+app.get('/api/categories', async (req, res) => {
+  const data = await db.collection('categories').find().toArray();
+  res.json(data);
 });
 
-
-// =========================
-// GET SINGLE POST
-// =========================
-app.get('/api/posts/:id', async (req, res) => {
-  const post = await db.collection('posts').findOne({
-    _id: new ObjectId(req.params.id)
+app.post('/api/categories', async (req, res) => {
+  const result = await db.collection('categories').insertOne({
+    name: req.body.name
   });
 
-  res.json(post);
+  res.json({ _id: result.insertedId, name: req.body.name });
 });
 
 
 // =========================
-// CREATE POST
+// SUBFORUMS
 // =========================
-app.post('/api/posts', async (req, res) => {
-  const { text, author, category } = req.body;
+app.get('/api/subforums/:categoryId', async (req, res) => {
+  const data = await db.collection('subforums')
+    .find({ categoryId: req.params.categoryId })
+    .toArray();
 
+  res.json(data);
+});
+
+app.post('/api/subforums', async (req, res) => {
+  const result = await db.collection('subforums').insertOne({
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+
+  res.json({
+    _id: result.insertedId,
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+});
+
+
+// =========================
+// THREADS
+// =========================
+app.get('/api/threads/:subforumId', async (req, res) => {
+  const data = await db.collection('threads')
+    .find({ subforumId: req.params.subforumId })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  res.json(data);
+});
+
+app.post('/api/threads', async (req, res) => {
+  const thread = {
+    title: req.body.title,
+    subforumId: req.body.subforumId,
+    author: req.body.author,
+    createdAt: new Date()
+  };
+
+  const result = await db.collection('threads').insertOne(thread);
+
+  res.json({ ...thread, _id: result.insertedId });
+});
+
+
+// =========================
+// POSTS (REPLIES)
+// =========================
+app.get('/api/posts/:threadId', async (req, res) => {
+  const data = await db.collection('posts')
+    .find({ threadId: req.params.threadId })
+    .sort({ createdAt: 1 })
+    .toArray();
+
+  res.json(data);
+});
+
+app.post('/api/posts', async (req, res) => {
   const post = {
-    text,
-    author,
-    category,
-    replies: [],
+    threadId: req.body.threadId,
+    text: req.body.text,
+    author: req.body.author,
     createdAt: new Date()
   };
 
@@ -66,71 +119,8 @@ app.post('/api/posts', async (req, res) => {
 
 
 // =========================
-// UPDATE POST
-// =========================
-app.put('/api/posts/:id', async (req, res) => {
-  await db.collection('posts').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { text: req.body.text } }
-  );
-
-  res.json({ success: true });
-});
-
-
-// =========================
-// DELETE POST
-// =========================
-app.delete('/api/posts/:id', async (req, res) => {
-  await db.collection('posts').deleteOne({
-    _id: new ObjectId(req.params.id)
-  });
-
-  res.json({ success: true });
-});
-
-
-// =========================
-// ADD REPLY
-// =========================
-app.post('/api/posts/:id/replies', async (req, res) => {
-  const reply = {
-    text: req.body.text,
-    author: req.body.author,
-    createdAt: new Date()
-  };
-
-  await db.collection('posts').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $push: { replies: reply } }
-  );
-
-  res.json(reply);
-});
-
-
-// =========================
-// DELETE REPLY
-// =========================
-app.delete('/api/posts/:postId/replies/:replyIndex', async (req, res) => {
-  const post = await db.collection('posts').findOne({
-    _id: new ObjectId(req.params.postId)
-  });
-
-  post.replies.splice(req.params.replyIndex, 1);
-
-  await db.collection('posts').updateOne(
-    { _id: new ObjectId(req.params.postId) },
-    { $set: { replies: post.replies } }
-  );
-
-  res.json({ success: true });
-});
-
-
-// =========================
 // START SERVER
 // =========================
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
