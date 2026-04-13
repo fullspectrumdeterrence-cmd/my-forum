@@ -53,10 +53,10 @@
 
 <script>
 let posts = [];
-let currentPostIndex = null;
+let currentPost = null;
 const usernameInput = document.getElementById('username');
 
-// Load posts from backend
+// Load posts
 async function loadPosts() {
   const res = await fetch('/api/posts');
   posts = await res.json();
@@ -84,8 +84,10 @@ async function addPost() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({text, author, category})
   });
+
   const newPost = await res.json();
   posts.push(newPost);
+
   document.getElementById('postInput').value = '';
   renderPosts();
 }
@@ -94,29 +96,35 @@ async function addPost() {
 function renderPosts() {
   const postsDiv = document.getElementById('posts');
   postsDiv.innerHTML = '';
+
   posts.forEach((post, index) => {
     const div = document.createElement('div');
     div.className = 'post';
+
     div.innerHTML = `
       <strong>${post.author}</strong> (${post.category}): ${post.text}
-      <button class="btn" onclick="openThread(${index})">Thread</button>
+      <button class="btn" onclick='openThread(${JSON.stringify(post)})'>Thread</button>
       <button class="btn" onclick="editPost(${index})">Edit</button>
       <button class="btn" onclick="deletePost(${index})">Delete</button>
     `;
+
     postsDiv.appendChild(div);
   });
 }
 
-// Open thread view
-function openThread(index) {
-  currentPostIndex = index;
-  document.getElementById('mainView').style.display = 'none';
-  document.getElementById('threadView').style.display = 'block';
-  document.getElementById('threadTitle').innerText = posts[index].text;
+// Open thread
+function openThread(post) {
+  currentPost = post;
+
+  document.getElementById("mainView").style.display = "none";
+  document.getElementById("threadView").style.display = "block";
+
+  document.getElementById("threadTitle").innerText = post.text;
+
   renderReplies();
 }
 
-// Go back to main
+// Go back
 function goBack() {
   document.getElementById('mainView').style.display = 'block';
   document.getElementById('threadView').style.display = 'none';
@@ -126,15 +134,19 @@ function goBack() {
 async function addReply() {
   const text = document.getElementById('replyInput').value.trim();
   const author = usernameInput.value.trim();
+
   if (!text || !author) return alert("Enter your name and a reply");
 
-  const res = await fetch(`/api/posts/${currentPostIndex}/replies`, {
+  const res = await fetch(`/api/posts/${currentPost._id}/replies`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({text, author})
   });
+
   const reply = await res.json();
-  posts[currentPostIndex].replies.push(reply);
+
+  currentPost.replies.push(reply);
+
   document.getElementById('replyInput').value = '';
   renderReplies();
 }
@@ -143,69 +155,84 @@ async function addReply() {
 function renderReplies() {
   const repliesDiv = document.getElementById('replies');
   repliesDiv.innerHTML = '';
-  posts[currentPostIndex].replies.forEach((reply, index) => {
+
+  currentPost.replies.forEach((reply, index) => {
     const div = document.createElement('div');
     div.className = 'reply';
+
     div.innerHTML = `
       <strong>${reply.author}</strong>: ${reply.text}
-      <button class="btn" onclick="editReply(${currentPostIndex}, ${index})">Edit</button>
-      <button class="btn" onclick="deleteReply(${currentPostIndex}, ${index})">Delete</button>
+      <button class="btn" onclick="editReply(${index})">Edit</button>
+      <button class="btn" onclick="deleteReply(${index})">Delete</button>
     `;
+
     repliesDiv.appendChild(div);
   });
 }
 
-// Edit post
+// Edit post (still index-based for now)
 async function editPost(index) {
   const newText = prompt("Edit your post:", posts[index].text);
   if (!newText) return;
+
   posts[index].text = newText;
+
   await fetch('/api/posts', {
     method: 'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(posts)
   });
+
   renderPosts();
 }
 
 // Delete post
 async function deletePost(index) {
   if (!confirm("Delete this post?")) return;
+
   posts.splice(index, 1);
+
   await fetch('/api/posts', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(posts)
   });
+
   renderPosts();
 }
 
 // Edit reply
-async function editReply(postIndex, replyIndex) {
-  const newText = prompt("Edit reply:", posts[postIndex].replies[replyIndex].text);
+async function editReply(index) {
+  const newText = prompt("Edit reply:", currentPost.replies[index].text);
   if (!newText) return;
-  posts[postIndex].replies[replyIndex].text = newText;
+
+  currentPost.replies[index].text = newText;
+
   await fetch('/api/posts', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(posts)
   });
+
   renderReplies();
 }
 
 // Delete reply
-async function deleteReply(postIndex, replyIndex) {
+async function deleteReply(index) {
   if (!confirm("Delete this reply?")) return;
-  posts[postIndex].replies.splice(replyIndex, 1);
+
+  currentPost.replies.splice(index, 1);
+
   await fetch('/api/posts', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(posts)
   });
+
   renderReplies();
 }
 
-// Load posts on page load
+// Load on start
 loadPosts();
 
 </script>
