@@ -87,8 +87,14 @@ app.post('/api/categories', async (req, res) => {
 // SUBFORUMS
 // =========================
 app.get('/api/subforums/:categoryId', async (req, res) => {
+  const { ObjectId } = require('mongodb');
+
+  const categoryId = req.params.categoryId;
+
   const data = await db.collection('subforums')
-    .find({ categoryId: req.params.categoryId })
+    .find({
+      categoryId: new ObjectId(categoryId)
+    })
     .toArray();
 
   res.json(data);
