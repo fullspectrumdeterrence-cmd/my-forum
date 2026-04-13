@@ -4,19 +4,22 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MongoDB connection string (Render env variable)
+// =========================
+// SECTION 1: MONGO SETUP
+// =========================
 const uri = process.env.MONGO_URI;
-
 const client = new MongoClient(uri);
 let db;
 
-// Middleware
+// =========================
+// MIDDLEWARE
+// =========================
 app.use(express.json());
 app.use(express.static(__dirname));
 
 
 // =========================
-// CONNECT TO MONGODB
+// SECTION 2: CONNECT TO MONGODB
 // =========================
 async function connectDB() {
   try {
@@ -32,17 +35,16 @@ connectDB();
 
 
 // =========================
-// GET ALL POSTS
+// SECTION 3: POSTS API
 // =========================
+
+// GET ALL POSTS
 app.get('/api/posts', async (req, res) => {
   const posts = await db.collection('posts').find().toArray();
   res.json(posts);
 });
 
-
-// =========================
 // ADD NEW POST
-// =========================
 app.post('/api/posts', async (req, res) => {
   const { text, author, category } = req.body;
 
@@ -64,30 +66,23 @@ app.post('/api/posts', async (req, res) => {
 });
 
 
-// =========================
-// UPDATE POST (NEW)
-// =========================
+// UPDATE POST
 app.put('/api/posts/:id', async (req, res) => {
-  const { text } = req.body;
-
   try {
     await db.collection('posts').updateOne(
       { _id: new ObjectId(req.params.id) },
-      { $set: { text } }
+      { $set: { text: req.body.text } }
     );
 
     res.json({ success: true });
-
   } catch (err) {
-    console.error("❌ Update post error:", err);
+    console.error(err);
     res.status(500).send("Server error");
   }
 });
 
 
-// =========================
-// DELETE POST (NEW)
-// =========================
+// DELETE POST
 app.delete('/api/posts/:id', async (req, res) => {
   try {
     await db.collection('posts').deleteOne({
@@ -95,17 +90,18 @@ app.delete('/api/posts/:id', async (req, res) => {
     });
 
     res.json({ success: true });
-
   } catch (err) {
-    console.error("❌ Delete post error:", err);
+    console.error(err);
     res.status(500).send("Server error");
   }
 });
 
 
 // =========================
-// ADD REPLY
+// SECTION 4: REPLIES API
 // =========================
+
+// ADD REPLY
 app.post('/api/posts/:id/replies', async (req, res) => {
   const { text, author } = req.body;
 
@@ -114,7 +110,11 @@ app.post('/api/posts/:id/replies', async (req, res) => {
   }
 
   try {
-    const newReply = { text, author, createdAt: new Date() };
+    const newReply = {
+      text,
+      author,
+      createdAt: new Date()
+    };
 
     await db.collection('posts').updateOne(
       { _id: new ObjectId(req.params.id) },
@@ -122,7 +122,6 @@ app.post('/api/posts/:id/replies', async (req, res) => {
     );
 
     res.json(newReply);
-
   } catch (err) {
     console.error("❌ Reply error:", err);
     res.status(500).send("Server error");
@@ -131,7 +130,31 @@ app.post('/api/posts/:id/replies', async (req, res) => {
 
 
 // =========================
-// START SERVER
+// SECTION 5: THREAD ROUTES (NEW)
+// =========================
+
+// LOAD THREAD PAGE (frontend handles rendering)
+app.get('/post/:id', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
+// GET SINGLE POST (THREAD DATA)
+app.get('/api/post/:id', async (req, res) => {
+  try {
+    const post = await db.collection('posts').findOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json(post);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server error");
+  }
+});
+
+
+// =========================
+// SECTION 6: START SERVER
 // =========================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
