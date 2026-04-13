@@ -1,18 +1,17 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔥 PASTE YOUR CONNECTION STRING HERE (replace password)
+// MongoDB connection string (from Render env variable)
 const uri = process.env.MONGO_URI;
 
 const client = new MongoClient(uri);
 let db;
 
 // Middleware
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(express.static(__dirname));
 
 // Connect to MongoDB
@@ -29,14 +28,18 @@ async function connectDB() {
 connectDB();
 
 
-// Get all posts
+// =========================
+// GET ALL POSTS
+// =========================
 app.get('/api/posts', async (req, res) => {
   const posts = await db.collection('posts').find().toArray();
   res.json(posts);
 });
 
 
-// Add a new post
+// =========================
+// ADD NEW POST
+// =========================
 app.post('/api/posts', async (req, res) => {
   const { text, author, category } = req.body;
 
@@ -51,34 +54,52 @@ app.post('/api/posts', async (req, res) => {
     replies: []
   };
 
-  await db.collection('posts').insertOne(post);
-  res.json(post);
+  const result = await db.collection('posts').insertOne(post);
+
+  // return post WITH _id (important)
+  res.json({ ...post, _id: result.insertedId });
 });
 
 
-// Add a reply
+// =========================
+// ADD REPLY (FIXED)
+// =========================
 app.post('/api/posts/:id/replies', async (req, res) => {
   const { text, author } = req.body;
   const postId = req.params.id;
 
-  if (!text || !author) return res.status(400).send('Missing data');
+  if (!text || !author) {
+    return res.status(400).send('Missing data');
+  }
 
-  const post = await db.collection('posts').findOne({ _id: new require('mongodb').ObjectId(postId) });
+  try {
+    const post = await db.collection('posts').findOne({
+      _id: new ObjectId(postId)
+    });
 
-  if (!post) return res.status(404).send('Post not found');
+    if (!post) {
+      return res.status(404).send('Post not found');
+    }
 
-  const updatedReplies = [...post.replies, { text, author }];
+    const newReply = { text, author };
 
-  await db.collection('posts').updateOne(
-    { _id: new require('mongodb').ObjectId(postId) },
-    { $set: { replies: updatedReplies } }
-  );
+    await db.collection('posts').updateOne(
+      { _id: new ObjectId(postId) },
+      { $push: { replies: newReply } }
+    );
 
-  res.json({ text, author });
+    res.json(newReply);
+
+  } catch (err) {
+    console.error("❌ Reply error:", err);
+    res.status(500).send("Server error");
+  }
 });
 
 
-// Start server
+// =========================
+// START SERVER
+// =========================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
