@@ -4,21 +4,8 @@
   <title>My Forum</title>
   <style>
     body { font-family: Arial; margin: 20px; }
-
-    .post, .reply {
-      padding: 10px;
-      border: 1px solid #ccc;
-      margin-bottom: 10px;
-    }
-
-    .btn {
-      margin-left: 5px;
-      cursor: pointer;
-      font-size: 0.8em;
-      padding: 2px 5px;
-    }
-
-    #threadView { display: none; }
+    .post, .reply { padding: 10px; border: 1px solid #ccc; margin-bottom: 10px; }
+    .btn { margin-left: 5px; cursor: pointer; font-size: 0.8em; }
   </style>
 </head>
 
@@ -26,44 +13,34 @@
 
 <h1>My Forum</h1>
 
+<input id="username" placeholder="Your name">
+<button onclick="saveUser()">Save User</button>
+
+<hr>
+
 <!-- MAIN VIEW -->
 <div id="mainView">
-  <input id="username" placeholder="Your name" />
-
-  <button onclick="switchUser()">Switch User</button>
-
-  <br><br>
-
-  <textarea id="postInput" placeholder="Write a post..." rows="4"></textarea>
-
-  <br><br>
-
-  <select id="categorySelect">
-    <option value="General">General</option>
-    <option value="News">News</option>
-    <option value="Tech">Tech</option>
+  <textarea id="postInput" placeholder="Write post"></textarea>
+  <br>
+  <select id="category">
+    <option>General</option>
+    <option>News</option>
+    <option>Tech</option>
   </select>
-
-  <br><br>
-
-  <button onclick="addPost()">Post</button>
+  <button onclick="createPost()">Post</button>
 
   <h2>Posts</h2>
   <div id="posts"></div>
 </div>
 
 <!-- THREAD VIEW -->
-<div id="threadView">
-  <button onclick="goBack()">← Back</button>
-  <h2 id="threadTitle"></h2>
+<div id="threadView" style="display:none;">
+  <button onclick="back()">← Back</button>
+  <h2 id="title"></h2>
 
-  <h3>Replies</h3>
   <div id="replies"></div>
 
-  <textarea id="replyInput" placeholder="Write a reply..." rows="3"></textarea>
-
-  <br><br>
-
+  <textarea id="replyInput"></textarea>
   <button onclick="addReply()">Reply</button>
 </div>
 
@@ -71,207 +48,134 @@
 
 let posts = [];
 let currentPost = null;
-const usernameInput = document.getElementById('username');
-
 
 // =====================
-// USER PERSISTENCE FIX
+// USER SYSTEM
 // =====================
+const savedUser = localStorage.getItem("user");
+if (savedUser) document.getElementById("username").value = savedUser;
 
-// Load saved username on startup
-const savedUser = localStorage.getItem("forum_username");
-if (savedUser) {
-  usernameInput.value = savedUser;
+function saveUser() {
+  localStorage.setItem("user", document.getElementById("username").value);
 }
-
-// Ensure username exists
-function ensureUsername() {
-  if (!usernameInput.value.trim()) {
-    usernameInput.value = "Guest";
-  }
-  localStorage.setItem("forum_username", usernameInput.value);
-}
-
 
 // =====================
 // LOAD POSTS
 // =====================
 async function loadPosts() {
-  const res = await fetch('/api/posts');
-  posts = await res.json();
+  posts = await (await fetch('/api/posts')).json();
   renderPosts();
 }
 
-
 // =====================
-// SWITCH USER
+// CREATE POST
 // =====================
-function switchUser() {
-  const newUser = prompt("Enter username:", usernameInput.value);
-  if (!newUser) return;
-
-  usernameInput.value = newUser;
-  localStorage.setItem("forum_username", newUser);
-}
-
-
-// =====================
-// ADD POST
-// =====================
-async function addPost() {
-
-  ensureUsername();
-
-  const text = document.getElementById('postInput').value.trim();
-  const author = usernameInput.value.trim();
-  const category = document.getElementById('categorySelect').value;
-
-  if (!text || !author) return alert("Missing data");
+async function createPost() {
+  const text = document.getElementById('postInput').value;
+  const author = document.getElementById('username').value;
+  const category = document.getElementById('category').value;
 
   await fetch('/api/posts', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ text, author, category })
+    body: JSON.stringify({text, author, category})
   });
 
-  document.getElementById('postInput').value = '';
   loadPosts();
 }
-
 
 // =====================
 // RENDER POSTS
 // =====================
 function renderPosts() {
-  const postsDiv = document.getElementById('posts');
-  postsDiv.innerHTML = '';
+  const div = document.getElementById('posts');
+  div.innerHTML = '';
 
-  posts.forEach(post => {
-    const div = document.createElement('div');
-    div.className = 'post';
+  posts.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'post';
 
-    div.innerHTML = `
-      <strong>${post.author}</strong> (${post.category})<br>
-
-      <span style="cursor:pointer; color:blue;"
-        onclick="openThread('${post._id}')">
-        ${post.text}
+    el.innerHTML = `
+      <b>${p.author}</b> (${p.category})<br>
+      <span onclick="openPost('${p._id}')" style="color:blue;cursor:pointer;">
+        ${p.text}
       </span>
     `;
 
-    postsDiv.appendChild(div);
+    div.appendChild(el);
   });
 }
 
+// =====================
+// OPEN POST (SPA)
+// =====================
+async function openPost(id) {
+  currentPost = await (await fetch('/api/posts/' + id)).json();
 
-// =====================
-// OPEN THREAD
-// =====================
-function openThread(postId) {
-  window.location.href = `/post/${postId}`;
+  document.getElementById('mainView').style.display = 'none';
+  document.getElementById('threadView').style.display = 'block';
+
+  document.getElementById('title').innerText = currentPost.text;
+  renderReplies();
 }
 
-
 // =====================
-// LOAD THREAD
+// BACK
 // =====================
-async function loadThreadIfNeeded() {
-  const path = window.location.pathname;
-
-  if (path.startsWith('/post/')) {
-    const id = path.split('/post/')[1];
-
-    const res = await fetch(`/api/post/${id}`);
-    const post = await res.json();
-
-    currentPost = post;
-
-    document.getElementById('mainView').style.display = 'none';
-    document.getElementById('threadView').style.display = 'block';
-
-    document.getElementById('threadTitle').innerText = post.text;
-
-    renderReplies();
-  }
+function back() {
+  document.getElementById('threadView').style.display = 'none';
+  document.getElementById('mainView').style.display = 'block';
 }
-
 
 // =====================
 // ADD REPLY
 // =====================
 async function addReply() {
+  const text = document.getElementById('replyInput').value;
+  const author = document.getElementById('username').value;
 
-  ensureUsername();
-
-  const text = document.getElementById('replyInput').value.trim();
-  const author = usernameInput.value.trim();
-
-  if (!text) {
-    alert("Please write a reply");
-    return;
-  }
-
-  if (!currentPost || !currentPost._id) {
-    alert("Thread not loaded properly. Refresh and try again.");
-    return;
-  }
-
-  const res = await fetch(`/api/posts/${currentPost._id}/replies`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ text, author })
+  await fetch(`/api/posts/${currentPost._id}/replies`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({text, author})
   });
 
-  if (!res.ok) {
-    alert("Server error");
-    return;
-  }
-
-  const reply = await res.json();
-
-  if (!currentPost.replies) currentPost.replies = [];
-  currentPost.replies.push(reply);
-
-  document.getElementById('replyInput').value = '';
-  renderReplies();
+  openPost(currentPost._id);
 }
-
 
 // =====================
 // RENDER REPLIES
 // =====================
 function renderReplies() {
-  const repliesDiv = document.getElementById('replies');
-  repliesDiv.innerHTML = '';
+  const div = document.getElementById('replies');
+  div.innerHTML = '';
 
-  if (!currentPost || !currentPost.replies) return;
+  currentPost.replies.forEach((r,i) => {
+    const el = document.createElement('div');
+    el.className = 'reply';
 
-  currentPost.replies.forEach(reply => {
-    const div = document.createElement('div');
-    div.className = 'reply';
-
-    div.innerHTML = `
-      <strong>${reply.author}</strong>: ${reply.text}
+    el.innerHTML = `
+      <b>${r.author}</b>: ${r.text}
+      <button onclick="deleteReply(${i})">Delete</button>
     `;
 
-    repliesDiv.appendChild(div);
+    div.appendChild(el);
   });
 }
 
+// =====================
+// DELETE REPLY
+// =====================
+async function deleteReply(index) {
+  await fetch(`/api/posts/${currentPost._id}/replies/${index}`, {
+    method:'DELETE'
+  });
 
-// =====================
-// BACK BUTTON
-// =====================
-function goBack() {
-  window.location.href = '/';
+  openPost(currentPost._id);
 }
 
-
-// =====================
 // INIT
-// =====================
 loadPosts();
-loadThreadIfNeeded();
 
 </script>
 
