@@ -57,22 +57,21 @@ app.post('/api/posts', async (req, res) => {
 
 
 // Add a reply
-app.post('/api/posts/:index/replies', async (req, res) => {
+app.post('/api/posts/:id/replies', async (req, res) => {
   const { text, author } = req.body;
-  const index = parseInt(req.params.index);
+  const postId = req.params.id;
 
   if (!text || !author) return res.status(400).send('Missing data');
 
-  const posts = await db.collection('posts').find().toArray();
-  const post = posts[index];
+  const post = await db.collection('posts').findOne({ _id: new require('mongodb').ObjectId(postId) });
 
   if (!post) return res.status(404).send('Post not found');
 
-  post.replies.push({ text, author });
+  const updatedReplies = [...post.replies, { text, author }];
 
   await db.collection('posts').updateOne(
-    { _id: post._id },
-    { $set: { replies: post.replies } }
+    { _id: new require('mongodb').ObjectId(postId) },
+    { $set: { replies: updatedReplies } }
   );
 
   res.json({ text, author });
