@@ -4,6 +4,9 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// =========================
+// DB CONNECTION
+// =========================
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
@@ -12,9 +15,6 @@ let db;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// =========================
-// CONNECT DB
-// =========================
 async function connectDB() {
   try {
     await client.connect();
@@ -24,30 +24,59 @@ async function connectDB() {
     console.error("❌ DB error:", err);
   }
 }
+
 connectDB();
+
+// =========================
+// HELPER (prevents crashes)
+// =========================
+function checkDB(res) {
+  if (!db) {
+    res.status(500).send("Database not ready");
+    return false;
+  }
+  return true;
+}
 
 // =========================
 // CATEGORIES
 // =========================
 app.get('/api/categories', async (req, res) => {
-  const data = await db.collection('categories').find().toArray();
-  res.json(data);
+  if (!checkDB(res)) return;
+
+  try {
+    const data = await db.collection('categories').find().toArray();
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error fetching categories");
+  }
 });
 
 app.post('/api/categories', async (req, res) => {
-  const result = await db.collection('categories').insertOne({
-    name: req.body.name
-  });
-  res.json({ _id: result.insertedId, name: req.body.name });
+  if (!checkDB(res)) return;
+
+  try {
+    const result = await db.collection('categories').insertOne({
+      name: req.body.name
+    });
+
+    res.json({ _id: result.insertedId, name: req.body.name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating category");
+  }
 });
 
 // =========================
 // SUBFORUMS
 // =========================
 app.get('/api/subforums/:categoryId', async (req, res) => {
+  if (!checkDB(res)) return;
+
   try {
     const data = await db.collection('subforums')
-      .find({ categoryId: req.params.categoryId.toString() })
+      .find({ categoryId: req.params.categoryId })
       .toArray();
 
     res.json(data);
@@ -58,97 +87,149 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
 });
 
 app.post('/api/subforums', async (req, res) => {
-  const result = await db.collection('subforums').insertOne({
-    name: req.body.name,
-    categoryId: req.body.categoryId
-  });
+  if (!checkDB(res)) return;
 
-  res.json({
-    _id: result.insertedId,
-    name: req.body.name,
-    categoryId: req.body.categoryId
-  });
+  try {
+    const result = await db.collection('subforums').insertOne({
+      name: req.body.name,
+      categoryId: req.body.categoryId
+    });
+
+    res.json({
+      _id: result.insertedId,
+      name: req.body.name,
+      categoryId: req.body.categoryId
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating subforum");
+  }
 });
 
 // =========================
 // THREADS
 // =========================
 app.get('/api/threads/:subforumId', async (req, res) => {
-  const data = await db.collection('threads')
-    .find({ subforumId: req.params.subforumId })
-    .sort({ createdAt: -1 })
-    .toArray();
+  if (!checkDB(res)) return;
 
-  res.json(data);
+  try {
+    const data = await db.collection('threads')
+      .find({ subforumId: req.params.subforumId })
+      .sort({ pinned: -1, createdAt: -1 }) // better sorting
+      .toArray();
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error fetching threads");
+  }
 });
 
 app.post('/api/threads', async (req, res) => {
-  const { title, subforumId, author } = req.body;
+  if (!checkDB(res)) return;
 
-  if (!title || !subforumId || !author) {
-    return res.status(400).send("Missing data");
+  try {
+    const { title, subforumId, author } = req.body;
+
+    if (!title || !subforumId || !author) {
+      return res.status(400).send("Missing data");
+    }
+
+    const thread = {
+      title,
+      subforumId,
+      author,
+      createdAt: new Date(),
+      pinned: false,
+      locked: false
+    };
+
+    const result = await db.collection('threads').insertOne(thread);
+
+    res.json({ ...thread, _id: result.insertedId });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating thread");
   }
-
-  const thread = {
-    title,
-    subforumId,
-    author,
-    createdAt: new Date(),
-    pinned: false,
-    locked: false
-  };
-
-  const result = await db.collection('threads').insertOne(thread);
-  res.json({ ...thread, _id: result.insertedId });
 });
 
 // =========================
 // POSTS (REPLIES)
 // =========================
 app.get('/api/posts/:threadId', async (req, res) => {
-  const data = await db.collection('posts')
-    .find({ threadId: req.params.threadId })
-    .sort({ createdAt: 1 })
-    .toArray();
+  if (!checkDB(res)) return;
 
-  res.json(data);
+  try {
+    const data = await db.collection('posts')
+      .find({ threadId: req.params.threadId })
+      .sort({ createdAt: 1 })
+      .toArray();
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error fetching posts");
+  }
 });
 
 app.post('/api/posts', async (req, res) => {
-  const { threadId, text, author } = req.body;
+  if (!checkDB(res)) return;
 
-  if (!threadId || !text || !author) {
-    return res.status(400).send("Missing data");
+  try {
+    const { threadId, text, author } = req.body;
+
+    if (!threadId || !text || !author) {
+      return res.status(400).send("Missing data");
+    }
+
+    const post = {
+      threadId,
+      text,
+      author,
+      createdAt: new Date()
+    };
+
+    const result = await db.collection('posts').insertOne(post);
+
+    res.json({ ...post, _id: result.insertedId });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating post");
   }
-
-  const post = {
-    threadId,
-    text,
-    author,
-    createdAt: new Date()
-  };
-
-  const result = await db.collection('posts').insertOne(post);
-  res.json({ ...post, _id: result.insertedId });
 });
 
 // =========================
-// SEED (optional)
+// SEED (SAFE VERSION)
 // =========================
 app.get('/api/seed', async (req, res) => {
-  await db.collection('categories').deleteMany({});
-  await db.collection('subforums').deleteMany({});
+  if (!checkDB(res)) return;
 
-  const cat1 = await db.collection('categories').insertOne({ name: "General" });
-  const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
+  try {
+    // clear old data
+    await db.collection('categories').deleteMany({});
+    await db.collection('subforums').deleteMany({});
+    await db.collection('threads').deleteMany({});
+    await db.collection('posts').deleteMany({});
 
-  await db.collection('subforums').insertMany([
-    { name: "Announcements", categoryId: cat1.insertedId.toString() },
-    { name: "Introductions", categoryId: cat1.insertedId.toString() },
-    { name: "Military News", categoryId: cat2.insertedId.toString() }
-  ]);
+    // create categories
+    const cat1 = await db.collection('categories').insertOne({ name: "General" });
+    const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
 
-  res.send("Seeded categories + subforums");
+    // create subforums
+    await db.collection('subforums').insertMany([
+      { name: "Announcements", categoryId: cat1.insertedId.toString() },
+      { name: "Introductions", categoryId: cat1.insertedId.toString() },
+      { name: "Military News", categoryId: cat2.insertedId.toString() }
+    ]);
+
+    res.send("Seeded categories + subforums");
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Seed error");
+  }
 });
 
 // =========================
