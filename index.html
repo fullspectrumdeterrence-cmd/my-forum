@@ -4,8 +4,21 @@
   <title>My Forum</title>
   <style>
     body { font-family: Arial; margin: 20px; }
-    .post, .reply { padding: 10px; border: 1px solid #ccc; margin-bottom: 10px; }
-    .btn { margin-left: 5px; cursor: pointer; font-size: 0.8em; }
+
+    .box {
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+
+    .hidden { display: none; }
+
+    .btn {
+      margin-left: 5px;
+      font-size: 12px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -13,44 +26,68 @@
 
 <h1>My Forum</h1>
 
-<input id="username" placeholder="Your name">
-<button onclick="saveUser()">Save User</button>
+<input id="username" placeholder="Username">
+<button onclick="saveUser()">Save</button>
 
 <hr>
 
-<!-- MAIN VIEW -->
-<div id="mainView">
-  <textarea id="postInput" placeholder="Write post"></textarea>
-  <br>
-  <select id="category">
-    <option>General</option>
-    <option>News</option>
-    <option>Tech</option>
-  </select>
-  <button onclick="createPost()">Post</button>
+<!-- ===================== -->
+<!-- CATEGORY VIEW -->
+<!-- ===================== -->
+<div id="viewCategories"></div>
 
-  <h2>Posts</h2>
-  <div id="posts"></div>
+<!-- ===================== -->
+<!-- SUBFORUM VIEW -->
+<!-- ===================== -->
+<div id="viewSubforums" class="hidden">
+  <button onclick="backToCategories()">← Back</button>
+  <h2 id="categoryTitle"></h2>
+  <div id="subforums"></div>
 </div>
 
+<!-- ===================== -->
 <!-- THREAD VIEW -->
-<div id="threadView" style="display:none;">
-  <button onclick="back()">← Back</button>
-  <h2 id="title"></h2>
+<!-- ===================== -->
+<div id="viewThreads" class="hidden">
+  <button onclick="backToSubforums()">← Back</button>
+  <h2 id="subforumTitle"></h2>
 
-  <div id="replies"></div>
+  <input id="threadTitleInput" placeholder="New thread title">
+  <button onclick="createThread()">Create Thread</button>
 
-  <textarea id="replyInput"></textarea>
-  <button onclick="addReply()">Reply</button>
+  <div id="threads"></div>
+</div>
+
+<!-- ===================== -->
+<!-- POSTS VIEW -->
+<!-- ===================== -->
+<div id="viewPosts" class="hidden">
+  <button onclick="backToThreads()">← Back</button>
+
+  <h2 id="threadTitle"></h2>
+
+  <div id="posts"></div>
+
+  <textarea id="postText"></textarea>
+  <button onclick="addPost()">Reply</button>
 </div>
 
 <script>
 
+// =====================
+// STATE
+// =====================
+let categories = [];
+let subforums = [];
+let threads = [];
 let posts = [];
-let currentPost = null;
+
+let currentCategory = null;
+let currentSubforum = null;
+let currentThread = null;
 
 // =====================
-// USER SYSTEM
+// USER
 // =====================
 const savedUser = localStorage.getItem("user");
 if (savedUser) document.getElementById("username").value = savedUser;
@@ -60,28 +97,139 @@ function saveUser() {
 }
 
 // =====================
-// LOAD POSTS
+// LOAD CATEGORIES
 // =====================
-async function loadPosts() {
-  posts = await (await fetch('/api/posts')).json();
+async function loadCategories() {
+  categories = await (await fetch('/api/categories')).json();
+
+  const div = document.getElementById('viewCategories');
+  div.innerHTML = '';
+
+  categories.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'box';
+    el.innerText = c.name;
+
+    el.onclick = () => openCategory(c);
+
+    div.appendChild(el);
+  });
+}
+
+// =====================
+// OPEN CATEGORY
+// =====================
+async function openCategory(category) {
+  currentCategory = category;
+
+  document.getElementById('viewCategories').classList.add('hidden');
+  document.getElementById('viewSubforums').classList.remove('hidden');
+
+  document.getElementById('categoryTitle').innerText = category.name;
+
+  subforums = await (await fetch(`/api/subforums/${category._id}`)).json();
+
+  const div = document.getElementById('subforums');
+  div.innerHTML = '';
+
+  subforums.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'box';
+    el.innerText = s.name;
+    el.onclick = () => openSubforum(s);
+    div.appendChild(el);
+  });
+}
+
+// =====================
+// OPEN SUBFORUM
+// =====================
+async function openSubforum(subforum) {
+  currentSubforum = subforum;
+
+  document.getElementById('viewSubforums').classList.add('hidden');
+  document.getElementById('viewThreads').classList.remove('hidden');
+
+  document.getElementById('subforumTitle').innerText = subforum.name;
+
+  threads = await (await fetch(`/api/threads/${subforum._id}`)).json();
+
+  renderThreads();
+}
+
+// =====================
+// CREATE THREAD
+// =====================
+async function createThread() {
+  const title = document.getElementById('threadTitleInput').value;
+  const author = document.getElementById('username').value;
+
+  await fetch('/api/threads', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title,
+      subforumId: currentSubforum._id,
+      author
+    })
+  });
+
+  openSubforum(currentSubforum);
+}
+
+// =====================
+// RENDER THREADS
+// =====================
+function renderThreads() {
+  const div = document.getElementById('threads');
+  div.innerHTML = '';
+
+  threads.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'box';
+
+    el.innerHTML = `<b>${t.title}</b><br>by ${t.author}`;
+
+    el.onclick = () => openThread(t);
+
+    div.appendChild(el);
+  });
+}
+
+// =====================
+// OPEN THREAD
+// =====================
+async function openThread(thread) {
+  currentThread = thread;
+
+  document.getElementById('viewThreads').classList.add('hidden');
+  document.getElementById('viewPosts').classList.remove('hidden');
+
+  document.getElementById('threadTitle').innerText = thread.title;
+
+  posts = await (await fetch(`/api/posts/${thread._id}`)).json();
+
   renderPosts();
 }
 
 // =====================
-// CREATE POST
+// ADD POST (REPLY)
 // =====================
-async function createPost() {
-  const text = document.getElementById('postInput').value;
+async function addPost() {
+  const text = document.getElementById('postText').value;
   const author = document.getElementById('username').value;
-  const category = document.getElementById('category').value;
 
   await fetch('/api/posts', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({text, author, category})
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      threadId: currentThread._id,
+      text,
+      author
+    })
   });
 
-  loadPosts();
+  openThread(currentThread);
 }
 
 // =====================
@@ -93,89 +241,33 @@ function renderPosts() {
 
   posts.forEach(p => {
     const el = document.createElement('div');
-    el.className = 'post';
+    el.className = 'box';
 
-    el.innerHTML = `
-      <b>${p.author}</b> (${p.category})<br>
-      <span onclick="openPost('${p._id}')" style="color:blue;cursor:pointer;">
-        ${p.text}
-      </span>
-    `;
+    el.innerHTML = `<b>${p.author}</b>: ${p.text}`;
 
     div.appendChild(el);
   });
 }
 
 // =====================
-// OPEN POST (SPA)
+// BACK NAVIGATION
 // =====================
-async function openPost(id) {
-  currentPost = await (await fetch('/api/posts/' + id)).json();
+function backToCategories() {
+  location.reload();
+}
 
-  document.getElementById('mainView').style.display = 'none';
-  document.getElementById('threadView').style.display = 'block';
+function backToSubforums() {
+  openCategory(currentCategory);
+}
 
-  document.getElementById('title').innerText = currentPost.text;
-  renderReplies();
+function backToThreads() {
+  openSubforum(currentSubforum);
 }
 
 // =====================
-// BACK
-// =====================
-function back() {
-  document.getElementById('threadView').style.display = 'none';
-  document.getElementById('mainView').style.display = 'block';
-}
-
-// =====================
-// ADD REPLY
-// =====================
-async function addReply() {
-  const text = document.getElementById('replyInput').value;
-  const author = document.getElementById('username').value;
-
-  await fetch(`/api/posts/${currentPost._id}/replies`, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({text, author})
-  });
-
-  openPost(currentPost._id);
-}
-
-// =====================
-// RENDER REPLIES
-// =====================
-function renderReplies() {
-  const div = document.getElementById('replies');
-  div.innerHTML = '';
-
-  currentPost.replies.forEach((r,i) => {
-    const el = document.createElement('div');
-    el.className = 'reply';
-
-    el.innerHTML = `
-      <b>${r.author}</b>: ${r.text}
-      <button onclick="deleteReply(${i})">Delete</button>
-    `;
-
-    div.appendChild(el);
-  });
-}
-
-// =====================
-// DELETE REPLY
-// =====================
-async function deleteReply(index) {
-  await fetch(`/api/posts/${currentPost._id}/replies/${index}`, {
-    method:'DELETE'
-  });
-
-  openPost(currentPost._id);
-}
-
 // INIT
-loadPosts();
+// =====================
+loadCategories();
 
 </script>
 
