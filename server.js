@@ -192,13 +192,31 @@ app.post('/api/posts', async (req, res) => {
 });
 
 app.get('/api/seed', async (req, res) => {
-  await db.collection('categories').insertMany([
-    { name: "General" },
-    { name: "News" },
-    { name: "Tech" }
-  ]);
+  try {
+    await db.collection('categories').deleteMany({});
+    await db.collection('subforums').deleteMany({});
 
-  res.send("Seeded categories");
+    const cats = await db.collection('categories').insertMany([
+      { name: "General" },
+      { name: "Technology" },
+      { name: "News" }
+    ]);
+
+    const ids = Object.values(cats.insertedIds);
+
+    await db.collection('subforums').insertMany([
+      { name: "Introductions", categoryId: ids[0] },
+      { name: "Announcements", categoryId: ids[0] },
+      { name: "Hardware", categoryId: ids[1] },
+      { name: "Software", categoryId: ids[1] },
+      { name: "World News", categoryId: ids[2] }
+    ]);
+
+    res.send("Seeded categories + subforums");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Seed failed");
+  }
 });
 
 // =========================
