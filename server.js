@@ -1,307 +1,154 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>My Forum</title>
+const express = require('express');
+const { MongoClient, ObjectId } = require('mongodb');
 
-  <style>
-    body { font-family: Arial; margin: 20px; }
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    .box {
-      padding: 10px;
-      border: 1px solid #ccc;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
+const uri = process.env.MONGO_URI;
+const client = new MongoClient(uri);
 
-    .hidden { display: none; }
+let db;
 
-    .btn {
-      margin-left: 5px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-  </style>
-</head>
+app.use(express.json());
+app.use(express.static(__dirname));
 
-<body>
-
-<h1>My Forum</h1>
-
-<input id="username" placeholder="Username">
-<button onclick="saveUser()">Save</button>
-
-<hr>
-
-<!-- CATEGORY VIEW -->
-<div id="viewCategories"></div>
-
-<!-- SUBFORUM VIEW -->
-<div id="viewSubforums" class="hidden">
-  <button onclick="backToCategories()">← Back</button>
-  <h2 id="categoryTitle"></h2>
-  <div id="subforums"></div>
-</div>
-
-<!-- THREAD VIEW -->
-<div id="viewThreads" class="hidden">
-  <button onclick="backToSubforums()">← Back</button>
-  <h2 id="subforumTitle"></h2>
-
-  <input id="threadTitleInput" placeholder="New thread title">
-  <button onclick="createThread()">Create Thread</button>
-
-  <div id="threads"></div>
-</div>
-
-<!-- POSTS VIEW -->
-<div id="viewPosts" class="hidden">
-  <button onclick="backToThreads()">← Back</button>
-
-  <h2 id="threadTitle"></h2>
-
-  <div id="posts"></div>
-
-  <textarea id="postText" placeholder="Write a reply..."></textarea>
-  <button onclick="addPost()">Reply</button>
-</div>
-
-<script>
-
-// =====================
-// STATE
-// =====================
-let categories = [];
-let subforums = [];
-let threads = [];
-let posts = [];
-
-let currentCategory = null;
-let currentSubforum = null;
-let currentThread = null;
-
-
-// =====================
-// USER
-// =====================
-const usernameInput = document.getElementById("username");
-
-const savedUser = localStorage.getItem("user");
-if (savedUser) usernameInput.value = savedUser;
-
-function saveUser() {
-  localStorage.setItem("user", usernameInput.value);
+// =========================
+// CONNECT DB
+// =========================
+async function connectDB() {
+  try {
+    await client.connect();
+    db = client.db("forumDB");
+    console.log("✅ MongoDB connected");
+  } catch (err) {
+    console.error("❌ DB error:", err);
+  }
 }
+connectDB();
 
+// =========================
+// CATEGORIES
+// =========================
+app.get('/api/categories', async (req, res) => {
+  const data = await db.collection('categories').find().toArray();
+  res.json(data);
+});
 
-// =====================
-// VIEW CONTROL (FIX)
-// =====================
-function hideAllViews() {
-  document.getElementById('viewCategories').classList.add('hidden');
-  document.getElementById('viewSubforums').classList.add('hidden');
-  document.getElementById('viewThreads').classList.add('hidden');
-  document.getElementById('viewPosts').classList.add('hidden');
-}
-
-
-// =====================
-// LOAD CATEGORIES
-// =====================
-async function loadCategories() {
-  const res = await fetch('/api/categories');
-  categories = await res.json();
-
-  const div = document.getElementById('viewCategories');
-  div.innerHTML = '';
-
-  categories.forEach(c => {
-    const el = document.createElement('div');
-    el.className = 'box';
-    el.innerText = c.name;
-    el.onclick = () => openCategory(c);
-    div.appendChild(el);
+app.post('/api/categories', async (req, res) => {
+  const result = await db.collection('categories').insertOne({
+    name: req.body.name
   });
-}
+  res.json({ _id: result.insertedId, name: req.body.name });
+});
 
+// =========================
+// SUBFORUMS
+// =========================
+app.get('/api/subforums/:categoryId', async (req, res) => {
+  const data = await db.collection('subforums')
+    .find({ categoryId: req.params.categoryId })
+    .toArray();
 
-// =====================
-// OPEN CATEGORY
-// =====================
-async function openCategory(category) {
-  currentCategory = category;
+  res.json(data);
+});
 
-  hideAllViews();
-  document.getElementById('viewSubforums').classList.remove('hidden');
-
-  document.getElementById('categoryTitle').innerText = category.name;
-
-  const res = await fetch(`/api/subforums/${category._id}`);
-  subforums = await res.json();
-
-  const div = document.getElementById('subforums');
-  div.innerHTML = '';
-
-  subforums.forEach(s => {
-    const el = document.createElement('div');
-    el.className = 'box';
-    el.innerText = s.name;
-    el.onclick = () => openSubforum(s);
-    div.appendChild(el);
+app.post('/api/subforums', async (req, res) => {
+  const result = await db.collection('subforums').insertOne({
+    name: req.body.name,
+    categoryId: req.body.categoryId
   });
-}
 
+  res.json({
+    _id: result.insertedId,
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+});
 
-// =====================
-// OPEN SUBFORUM
-// =====================
-async function openSubforum(subforum) {
-  currentSubforum = subforum;
+// =========================
+// THREADS
+// =========================
+app.get('/api/threads/:subforumId', async (req, res) => {
+  const data = await db.collection('threads')
+    .find({ subforumId: req.params.subforumId })
+    .sort({ createdAt: -1 })
+    .toArray();
 
-  hideAllViews();
-  document.getElementById('viewThreads').classList.remove('hidden');
+  res.json(data);
+});
 
-  document.getElementById('subforumTitle').innerText = subforum.name;
+app.post('/api/threads', async (req, res) => {
+  const { title, subforumId, author } = req.body;
 
-  const res = await fetch(`/api/threads/${subforum._id}`);
-  threads = await res.json();
-
-  renderThreads();
-}
-
-
-// =====================
-// CREATE THREAD
-// =====================
-async function createThread() {
-  const title = document.getElementById('threadTitleInput').value.trim();
-  const author = usernameInput.value.trim();
-
-  if (!title || !author) {
-    alert("Missing data");
-    return;
+  if (!title || !subforumId || !author) {
+    return res.status(400).send("Missing data");
   }
 
-  await fetch('/api/threads', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      title,
-      subforumId: currentSubforum._id,
-      author
-    })
-  });
+  const thread = {
+    title,
+    subforumId,
+    author,
+    createdAt: new Date(),
+    pinned: false,
+    locked: false
+  };
 
-  document.getElementById('threadTitleInput').value = '';
-  openSubforum(currentSubforum);
-}
+  const result = await db.collection('threads').insertOne(thread);
+  res.json({ ...thread, _id: result.insertedId });
+});
 
+// =========================
+// POSTS (REPLIES)
+// =========================
+app.get('/api/posts/:threadId', async (req, res) => {
+  const data = await db.collection('posts')
+    .find({ threadId: req.params.threadId })
+    .sort({ createdAt: 1 })
+    .toArray();
 
-// =====================
-// RENDER THREADS
-// =====================
-function renderThreads() {
-  const div = document.getElementById('threads');
-  div.innerHTML = '';
+  res.json(data);
+});
 
-  threads.forEach(t => {
-    const el = document.createElement('div');
-    el.className = 'box';
+app.post('/api/posts', async (req, res) => {
+  const { threadId, text, author } = req.body;
 
-    el.innerHTML = `<b>${t.title}</b><br>by ${t.author}`;
-
-    el.onclick = () => openThread(t);
-
-    div.appendChild(el);
-  });
-}
-
-
-// =====================
-// OPEN THREAD
-// =====================
-async function openThread(thread) {
-  currentThread = thread;
-
-  hideAllViews();
-  document.getElementById('viewPosts').classList.remove('hidden');
-
-  document.getElementById('threadTitle').innerText = thread.title;
-
-  const res = await fetch(`/api/posts/${thread._id}`);
-  posts = await res.json();
-
-  renderPosts();
-}
-
-
-// =====================
-// ADD POST
-// =====================
-async function addPost() {
-  const text = document.getElementById('postText').value.trim();
-  const author = usernameInput.value.trim();
-
-  if (!text || !author) {
-    alert("Missing data");
-    return;
+  if (!threadId || !text || !author) {
+    return res.status(400).send("Missing data");
   }
 
-  await fetch('/api/posts', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      threadId: currentThread._id,
-      text,
-      author
-    })
-  });
+  const post = {
+    threadId,
+    text,
+    author,
+    createdAt: new Date()
+  };
 
-  document.getElementById('postText').value = '';
-  openThread(currentThread);
-}
+  const result = await db.collection('posts').insertOne(post);
+  res.json({ ...post, _id: result.insertedId });
+});
 
+// =========================
+// SEED (optional)
+// =========================
+app.get('/api/seed', async (req, res) => {
+  await db.collection('categories').deleteMany({});
+  await db.collection('subforums').deleteMany({});
 
-// =====================
-// RENDER POSTS
-// =====================
-function renderPosts() {
-  const div = document.getElementById('posts');
-  div.innerHTML = '';
+  const cat1 = await db.collection('categories').insertOne({ name: "General" });
+  const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
 
-  posts.forEach(p => {
-    const el = document.createElement('div');
-    el.className = 'box';
+  await db.collection('subforums').insertMany([
+    { name: "Announcements", categoryId: cat1.insertedId.toString() },
+    { name: "Introductions", categoryId: cat1.insertedId.toString() },
+    { name: "Military News", categoryId: cat2.insertedId.toString() }
+  ]);
 
-    el.innerHTML = `<b>${p.author}</b>: ${p.text}`;
+  res.send("Seeded categories + subforums");
+});
 
-    div.appendChild(el);
-  });
-}
-
-
-// =====================
-// BACK NAVIGATION (FIXED)
-// =====================
-function backToCategories() {
-  hideAllViews();
-  document.getElementById('viewCategories').classList.remove('hidden');
-}
-
-function backToSubforums() {
-  openCategory(currentCategory);
-}
-
-function backToThreads() {
-  openSubforum(currentSubforum);
-}
-
-
-// =====================
-// INIT
-// =====================
-loadCategories();
-
-</script>
-
-</body>
-</html>
+// =========================
+// START SERVER
+// =========================
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
