@@ -4,17 +4,25 @@
   <title>My Forum</title>
   <style>
     body { font-family: Arial; margin: 20px; }
+
     .post, .reply {
-      padding: 10px; border: 1px solid #ccc; margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
       position: relative;
     }
+
     .btn {
-      margin-left: 5px; cursor: pointer;
-      font-size: 0.8em; padding: 2px 5px;
+      margin-left: 5px;
+      cursor: pointer;
+      font-size: 0.8em;
+      padding: 2px 5px;
     }
+
     #threadView { display: none; }
   </style>
 </head>
+
 <body>
 
 <h1>My Forum</h1>
@@ -23,15 +31,21 @@
 <div id="mainView">
   <input id="username" placeholder="Your name" />
   <button onclick="switchUser()">Switch User</button>
+
   <br><br>
+
   <textarea id="postInput" placeholder="Write a post..." rows="4"></textarea>
+
   <br><br>
+
   <select id="categorySelect">
     <option value="General">General</option>
     <option value="News">News</option>
     <option value="Tech">Tech</option>
   </select>
+
   <br><br>
+
   <button onclick="addPost()">Post</button>
 
   <h2>Posts</h2>
@@ -56,14 +70,20 @@ let posts = [];
 let currentPost = null;
 const usernameInput = document.getElementById('username');
 
-// Load posts
+
+// =====================
+// LOAD POSTS
+// =====================
 async function loadPosts() {
   const res = await fetch('/api/posts');
   posts = await res.json();
   renderPosts();
 }
 
-// Switch user
+
+// =====================
+// SWITCH USER
+// =====================
 function switchUser() {
   const newUser = prompt("Enter new username:", usernameInput.value);
   if (!newUser) return;
@@ -71,7 +91,10 @@ function switchUser() {
   alert(`Switched user to: ${newUser}`);
 }
 
-// Add post
+
+// =====================
+// ADD POST
+// =====================
 async function addPost() {
   const text = document.getElementById('postInput').value.trim();
   const author = usernameInput.value.trim();
@@ -82,7 +105,7 @@ async function addPost() {
   const res = await fetch('/api/posts', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({text, author, category})
+    body: JSON.stringify({ text, author, category })
   });
 
   const newPost = await res.json();
@@ -92,7 +115,10 @@ async function addPost() {
   renderPosts();
 }
 
-// Render posts
+
+// =====================
+// RENDER POSTS
+// =====================
 function renderPosts() {
   const postsDiv = document.getElementById('posts');
   postsDiv.innerHTML = '';
@@ -102,8 +128,10 @@ function renderPosts() {
     div.className = 'post';
 
     div.innerHTML = `
-      <strong>${post.author}</strong> (${post.category}): ${post.text}
-      <button class="btn" onclick='openThread(${JSON.stringify(post)})'>Thread</button>
+      <strong>${post.author}</strong> (${post.category}): 
+      <span style="cursor:pointer; color:blue;" onclick='openThread(${JSON.stringify(post)})'>
+        ${post.text}
+      </span>
       <button class="btn" onclick="editPost(${index})">Edit</button>
       <button class="btn" onclick="deletePost(${index})">Delete</button>
     `;
@@ -112,7 +140,10 @@ function renderPosts() {
   });
 }
 
-// Open thread
+
+// =====================
+// OPEN THREAD
+// =====================
 function openThread(post) {
   currentPost = post;
 
@@ -124,13 +155,19 @@ function openThread(post) {
   renderReplies();
 }
 
-// Go back
+
+// =====================
+// BACK BUTTON
+// =====================
 function goBack() {
   document.getElementById('mainView').style.display = 'block';
   document.getElementById('threadView').style.display = 'none';
 }
 
-// Add reply
+
+// =====================
+// ADD REPLY
+// =====================
 async function addReply() {
   const text = document.getElementById('replyInput').value.trim();
   const author = usernameInput.value.trim();
@@ -140,21 +177,27 @@ async function addReply() {
   const res = await fetch(`/api/posts/${currentPost._id}/replies`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({text, author})
+    body: JSON.stringify({ text, author })
   });
 
   const reply = await res.json();
 
+  if (!currentPost.replies) currentPost.replies = [];
   currentPost.replies.push(reply);
 
   document.getElementById('replyInput').value = '';
   renderReplies();
 }
 
-// Render replies
+
+// =====================
+// RENDER REPLIES
+// =====================
 function renderReplies() {
   const repliesDiv = document.getElementById('replies');
   repliesDiv.innerHTML = '';
+
+  if (!currentPost || !currentPost.replies) return;
 
   currentPost.replies.forEach((reply, index) => {
     const div = document.createElement('div');
@@ -170,7 +213,10 @@ function renderReplies() {
   });
 }
 
-// Edit post (still index-based for now)
+
+// =====================
+// EDIT POST (still index-based)
+// =====================
 async function editPost(index) {
   const newText = prompt("Edit your post:", posts[index].text);
   if (!newText) return;
@@ -186,7 +232,10 @@ async function editPost(index) {
   renderPosts();
 }
 
-// Delete post
+
+// =====================
+// DELETE POST
+// =====================
 async function deletePost(index) {
   if (!confirm("Delete this post?")) return;
 
@@ -201,7 +250,10 @@ async function deletePost(index) {
   renderPosts();
 }
 
-// Edit reply
+
+// =====================
+// EDIT REPLY
+// =====================
 async function editReply(index) {
   const newText = prompt("Edit reply:", currentPost.replies[index].text);
   if (!newText) return;
@@ -217,7 +269,10 @@ async function editReply(index) {
   renderReplies();
 }
 
-// Delete reply
+
+// =====================
+// DELETE REPLY
+// =====================
 async function deleteReply(index) {
   if (!confirm("Delete this reply?")) return;
 
@@ -232,9 +287,11 @@ async function deleteReply(index) {
   renderReplies();
 }
 
-// Load on start
-loadPosts();
 
+// =====================
+// INIT
+// =====================
+loadPosts();
 </script>
 
 </body>
