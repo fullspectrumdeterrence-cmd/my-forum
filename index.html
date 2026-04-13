@@ -75,6 +75,16 @@ const usernameInput = document.getElementById('username');
 
 
 // =====================
+// HELPER: ENSURE USERNAME
+// =====================
+function ensureUsername() {
+  if (!usernameInput.value.trim()) {
+    usernameInput.value = "Guest";
+  }
+}
+
+
+// =====================
 // LOAD POSTS
 // =====================
 async function loadPosts() {
@@ -98,6 +108,9 @@ function switchUser() {
 // ADD POST
 // =====================
 async function addPost() {
+
+  ensureUsername();
+
   const text = document.getElementById('postInput').value.trim();
   const author = usernameInput.value.trim();
   const category = document.getElementById('categorySelect').value;
@@ -116,7 +129,7 @@ async function addPost() {
 
 
 // =====================
-// RENDER POSTS (CLICKABLE THREAD TITLE)
+// RENDER POSTS
 // =====================
 function renderPosts() {
   const postsDiv = document.getElementById('posts');
@@ -141,7 +154,7 @@ function renderPosts() {
 
 
 // =====================
-// OPEN THREAD (NEW SYSTEM)
+// OPEN THREAD
 // =====================
 function openThread(postId) {
   window.location.href = `/post/${postId}`;
@@ -149,7 +162,7 @@ function openThread(postId) {
 
 
 // =====================
-// LOAD THREAD IF ON /post/:id
+// LOAD THREAD
 // =====================
 async function loadThreadIfNeeded() {
   const path = window.location.pathname;
@@ -176,16 +189,32 @@ async function loadThreadIfNeeded() {
 // ADD REPLY
 // =====================
 async function addReply() {
+
+  ensureUsername();
+
   const text = document.getElementById('replyInput').value.trim();
   const author = usernameInput.value.trim();
 
-  if (!text || !author) return alert("Missing data");
+  if (!text) {
+    alert("Please write a reply");
+    return;
+  }
+
+  if (!currentPost || !currentPost._id) {
+    alert("Thread not loaded properly. Refresh and try again.");
+    return;
+  }
 
   const res = await fetch(`/api/posts/${currentPost._id}/replies`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ text, author })
   });
+
+  if (!res.ok) {
+    alert("Server error");
+    return;
+  }
 
   const reply = await res.json();
 
