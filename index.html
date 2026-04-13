@@ -75,12 +75,21 @@ const usernameInput = document.getElementById('username');
 
 
 // =====================
-// HELPER: ENSURE USERNAME
+// USER PERSISTENCE FIX
 // =====================
+
+// Load saved username on startup
+const savedUser = localStorage.getItem("forum_username");
+if (savedUser) {
+  usernameInput.value = savedUser;
+}
+
+// Ensure username exists
 function ensureUsername() {
   if (!usernameInput.value.trim()) {
     usernameInput.value = "Guest";
   }
+  localStorage.setItem("forum_username", usernameInput.value);
 }
 
 
@@ -100,7 +109,9 @@ async function loadPosts() {
 function switchUser() {
   const newUser = prompt("Enter username:", usernameInput.value);
   if (!newUser) return;
+
   usernameInput.value = newUser;
+  localStorage.setItem("forum_username", newUser);
 }
 
 
