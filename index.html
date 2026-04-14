@@ -134,15 +134,22 @@ function getUser() {
 // SECTION 5.0 - VIEW CONTROLLER (FIXED STACK ISSUE 🔥)
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 5.1 - MASTER VIEW SWITCHER (IMPORTANT FIX)
+// SECTION 5.1 - MASTER VIEW SWITCHER (FIXED SAFE VERSION)
 function showView(viewName) {
-  const views = ["Categories", "Subforums", "Threads", "Posts"];
+  const views = {
+    categories: "viewCategories",
+    subforums: "viewSubforums",
+    threads: "viewThreads",
+    posts: "viewPosts"
+  };
 
-  views.forEach(v => {
-    document.getElementById("view" + v).classList.add("hidden");
+  Object.values(views).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("hidden");
   });
 
-  document.getElementById("view" + capitalize(viewName)).classList.remove("hidden");
+  const target = document.getElementById(views[viewName]);
+  if (target) target.classList.remove("hidden");
 }
 
 // SECTION 5.2 - HELPER
@@ -176,43 +183,51 @@ async function loadCategories() {
   });
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// SECTION 8.0 - SUBFORUMS
-////////////////////////////////////////////////////////////////////////////////
+// SECTION 7.1 - OPEN CATEGORY
+async function openCategory(c) {
+  currentCategory = c;
 
-data.forEach(s => {
-  const el = document.createElement('div');
-  el.className = 'box';
+  showView("subforums");
 
-  const date = s.lastActivity
-    ? new Date(s.lastActivity).toLocaleString()
-    : "";
+  document.getElementById('categoryTitle').innerText = c.name;
 
-  el.innerHTML = `
-    <div class="row">
+  const res = await fetch(`/api/subforums/${c._id}`);
+  const data = await res.json();
 
-      <!-- LEFT: NAME -->
-      <div class="row-left">
-        ${s.name}
+  const div = document.getElementById('subforums');
+  div.innerHTML = '';
+
+  data.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'box';
+
+    const date = s.lastActivity
+      ? new Date(s.lastActivity).toLocaleString()
+      : "";
+
+    el.innerHTML = `
+      <div class="row">
+
+        <div class="row-left">
+          ${s.name}
+        </div>
+
+        <div class="row-center">
+          ${s.threadCount || 0} Threads
+        </div>
+
+        <div class="row-right">
+          ${date}
+        </div>
+
       </div>
+    `;
 
-      <!-- CENTER: THREAD COUNT -->
-      <div class="row-center">
-        ${s.threadCount || 0} Threads
-      </div>
+    el.onclick = () => openSubforum(s);
 
-      <!-- RIGHT: LAST POST -->
-      <div class="row-right">
-        ${date}
-      </div>
-
-    </div>
-  `;
-
-  el.onclick = () => openSubforum(s);
-
-  div.appendChild(el);
-});
+    div.appendChild(el);
+  });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 9.0 - THREADS
