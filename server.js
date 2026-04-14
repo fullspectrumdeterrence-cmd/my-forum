@@ -53,13 +53,34 @@ app.post('/api/categories', async (req, res) => {
 // SECTION 3 - SUBFORUMS
 // =========================
 
-// 3.1 GET subforums
+// 3.1 GET subforums (WITH THREAD COUNT FIX)
 app.get('/api/subforums/:categoryId', async (req, res) => {
-  const data = await db.collection('subforums')
-    .find({ categoryId: req.params.categoryId })
-    .toArray();
+  try {
+    const subforums = await db.collection('subforums')
+      .find({ categoryId: req.params.categoryId })
+      .toArray();
 
-  res.json(data);
+    const threads = await db.collection('threads')
+      .find()
+      .toArray();
+
+    const enriched = subforums.map(s => {
+      const count = threads.filter(t =>
+        t.subforumId === s._id.toString()
+      ).length;
+
+      return {
+        ...s,
+        threadCount: count
+      };
+    });
+
+    res.json(enriched);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error loading subforums");
+  }
 });
 
 // 3.2 CREATE subforum
