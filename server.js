@@ -4,6 +4,10 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// =========================
+// SECTION 1 - CONNECT DB
+// =========================
+
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
@@ -12,9 +16,6 @@ let db;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// =========================
-// CONNECT DB
-// =========================
 async function connectDB() {
   try {
     await client.connect();
@@ -24,17 +25,21 @@ async function connectDB() {
     console.error("❌ DB error:", err);
   }
 }
+
 connectDB();
 
 
 // =========================
-// CATEGORIES
+// SECTION 2 - CATEGORIES
 // =========================
+
+// 2.1 GET categories
 app.get('/api/categories', async (req, res) => {
   const data = await db.collection('categories').find().toArray();
   res.json(data);
 });
 
+// 2.2 CREATE category
 app.post('/api/categories', async (req, res) => {
   const result = await db.collection('categories').insertOne({
     name: req.body.name
@@ -45,8 +50,10 @@ app.post('/api/categories', async (req, res) => {
 
 
 // =========================
-// SUBFORUMS
+// SECTION 3 - SUBFORUMS
 // =========================
+
+// 3.1 GET subforums
 app.get('/api/subforums/:categoryId', async (req, res) => {
   const data = await db.collection('subforums')
     .find({ categoryId: req.params.categoryId })
@@ -55,19 +62,26 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
   res.json(data);
 });
 
+// 3.2 CREATE subforum
 app.post('/api/subforums', async (req, res) => {
   const result = await db.collection('subforums').insertOne({
     name: req.body.name,
     categoryId: req.body.categoryId
   });
 
-  res.json({ _id: result.insertedId, ...req.body });
+  res.json({
+    _id: result.insertedId,
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
 });
 
 
 // =========================
-// THREADS
+// SECTION 4 - THREADS
 // =========================
+
+// 4.1 GET threads (sorted by activity)
 app.get('/api/threads/:subforumId', async (req, res) => {
   const data = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
@@ -77,6 +91,7 @@ app.get('/api/threads/:subforumId', async (req, res) => {
   res.json(data);
 });
 
+// 4.2 CREATE thread
 app.post('/api/threads', async (req, res) => {
   const now = new Date();
 
@@ -96,33 +111,12 @@ app.post('/api/threads', async (req, res) => {
   res.json({ ...thread, _id: result.insertedId });
 });
 
-app.put('/api/threads/:id', async (req, res) => {
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { title: req.body.title } }
-  );
-
-  res.json({ success: true });
-});
-
-app.delete('/api/threads/:id', async (req, res) => {
-  await db.collection('threads').deleteOne({
-    _id: new ObjectId(req.params.id)
-  });
-
-  res.json({ success: true });
-});
-
-// =========================
-// EDIT THREAD
-// =========================
+// 4.3 EDIT thread
 app.put('/api/threads/:id', async (req, res) => {
   try {
-    const { title } = req.body;
-
     await db.collection('threads').updateOne(
       { _id: new ObjectId(req.params.id) },
-      { $set: { title } }
+      { $set: { title: req.body.title } }
     );
 
     res.json({ success: true });
@@ -132,17 +126,13 @@ app.put('/api/threads/:id', async (req, res) => {
   }
 });
 
-
-// =========================
-// DELETE THREAD
-// =========================
+// 4.4 DELETE thread
 app.delete('/api/threads/:id', async (req, res) => {
   try {
     await db.collection('threads').deleteOne({
       _id: new ObjectId(req.params.id)
     });
 
-    // also delete posts inside thread
     await db.collection('posts').deleteMany({
       threadId: req.params.id
     });
@@ -154,9 +144,12 @@ app.delete('/api/threads/:id', async (req, res) => {
   }
 });
 
+
 // =========================
-// POSTS
+// SECTION 5 - POSTS
 // =========================
+
+// 5.1 GET posts
 app.get('/api/posts/:threadId', async (req, res) => {
   const data = await db.collection('posts')
     .find({ threadId: req.params.threadId })
@@ -166,6 +159,7 @@ app.get('/api/posts/:threadId', async (req, res) => {
   res.json(data);
 });
 
+// 5.2 CREATE post (with thread update)
 app.post('/api/posts', async (req, res) => {
   try {
     const now = new Date();
@@ -196,26 +190,7 @@ app.post('/api/posts', async (req, res) => {
   }
 });
 
-app.put('/api/posts/:id', async (req, res) => {
-  await db.collection('posts').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { text: req.body.text } }
-  );
-
-  res.json({ success: true });
-});
-
-app.delete('/api/posts/:id', async (req, res) => {
-  await db.collection('posts').deleteOne({
-    _id: new ObjectId(req.params.id)
-  });
-
-  res.json({ success: true });
-});
-
-// =========================
-// EDIT POST
-// =========================
+// 5.3 EDIT post
 app.put('/api/posts/:id', async (req, res) => {
   try {
     await db.collection('posts').updateOne(
@@ -230,10 +205,7 @@ app.put('/api/posts/:id', async (req, res) => {
   }
 });
 
-
-// =========================
-// DELETE POST
-// =========================
+// 5.4 DELETE post
 app.delete('/api/posts/:id', async (req, res) => {
   try {
     await db.collection('posts').deleteOne({
@@ -247,9 +219,11 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
 });
 
+
 // =========================
-// SEED
+// SECTION 6 - SEED
 // =========================
+
 app.get('/api/seed', async (req, res) => {
   await db.collection('categories').deleteMany({});
   await db.collection('subforums').deleteMany({});
@@ -268,8 +242,9 @@ app.get('/api/seed', async (req, res) => {
 
 
 // =========================
-// START SERVER
+// SECTION 7 - START SERVER
 // =========================
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
