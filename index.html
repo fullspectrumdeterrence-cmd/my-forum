@@ -3,6 +3,9 @@
 <head>
   <title>My Forum</title>
 
+  <!-- ===================================================== -->
+  <!-- SECTION 2.5 - STYLES -->
+  <!-- ===================================================== -->
   <style>
     body { font-family: Arial; margin: 20px; }
 
@@ -17,6 +20,23 @@
 
     button { margin-left: 5px; }
     small { color: #666; }
+
+    /* ROW SYSTEM */
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .row-left { flex: 1; text-align: left; }
+    .row-center { flex: 1; text-align: center; }
+    .row-right {
+      flex: 1;
+      text-align: right;
+      font-size: 12px;
+      color: #666;
+    }
   </style>
 </head>
 
@@ -25,7 +45,7 @@
 <h1>My Forum</h1>
 
 <!-- ===================================================== -->
-<!-- SECTION 1.0 - USER SYSTEM UI -->
+<!-- SECTION 1.0 - USER SYSTEM -->
 <!-- ===================================================== -->
 <input id="username" placeholder="Username">
 <button onclick="saveUser()">Save</button>
@@ -33,20 +53,20 @@
 <hr>
 
 <!-- ===================================================== -->
-<!-- SECTION 2.0 - VIEW CONTAINERS (CORE UI PAGES) -->
+<!-- SECTION 2.0 - VIEW CONTAINERS -->
 <!-- ===================================================== -->
 
-<!-- SECTION 2.1 - CATEGORY VIEW -->
+<!-- SECTION 2.1 - CATEGORIES -->
 <div id="viewCategories"></div>
 
-<!-- SECTION 2.2 - SUBFORUM VIEW -->
+<!-- SECTION 2.2 - SUBFORUMS -->
 <div id="viewSubforums" class="hidden">
   <button onclick="goCategories()">← Back</button>
   <h2 id="categoryTitle"></h2>
   <div id="subforums"></div>
 </div>
 
-<!-- SECTION 2.3 - THREAD VIEW -->
+<!-- SECTION 2.3 - THREADS -->
 <div id="viewThreads" class="hidden">
   <button onclick="goSubforums()">← Back</button>
   <h2 id="subforumTitle"></h2>
@@ -57,7 +77,7 @@
   <div id="threads"></div>
 </div>
 
-<!-- SECTION 2.4 - POSTS VIEW -->
+<!-- SECTION 2.4 - POSTS -->
 <div id="viewPosts" class="hidden">
   <button onclick="goThreads()">← Back</button>
 
@@ -69,32 +89,8 @@
   <button onclick="addPost()">Reply</button>
 </div>
 
-  <script>
-    
-/* SECTION 2.5 - ROW LAYOUT FOR THREAD/STATS */
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
+<script>
 
-.row-left {
-  flex: 1;
-  text-align: left;
-}
-
-.row-center {
-  flex: 1;
-  text-align: center;
-}
-
-.row-right {
-  flex: 1;
-  text-align: right;
-  font-size: 12px;
-  color: #666;
-}
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 3.0 - STATE MANAGEMENT
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,32 +106,30 @@ let posts = [];
 // SECTION 4.0 - USER SYSTEM
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 4.1 - Load user from localStorage
+// SECTION 4.1 - INIT USER
 const usernameInput = document.getElementById('username');
+
 const savedUser = localStorage.getItem("user");
+if (savedUser) usernameInput.value = savedUser;
 
-if (savedUser) {
-  usernameInput.value = savedUser;
-}
-
-// SECTION 4.2 - Save user
+// SECTION 4.2 - SAVE USER
 function saveUser() {
   const name = usernameInput.value.trim();
   if (!name) return;
   localStorage.setItem("user", name);
 }
 
-// SECTION 4.3 - Get user
+// SECTION 4.3 - GET USER
 function getUser() {
   return localStorage.getItem("user") || "Anonymous";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SECTION 5.0 - VIEW CONTROLLER (FIXED STACK ISSUE 🔥)
+// SECTION 5.0 - VIEW SYSTEM
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 5.1 - MASTER VIEW SWITCHER (FIXED SAFE VERSION)
-function showView(viewName) {
+// SECTION 5.1 - SHOW VIEW (FIXED SAFE SWITCHER)
+function showView(view) {
   const views = {
     categories: "viewCategories",
     subforums: "viewSubforums",
@@ -148,13 +142,7 @@ function showView(viewName) {
     if (el) el.classList.add("hidden");
   });
 
-  const target = document.getElementById(views[viewName]);
-  if (target) target.classList.remove("hidden");
-}
-
-// SECTION 5.2 - HELPER
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  document.getElementById(views[view]).classList.remove("hidden");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +155,7 @@ loadCategories();
 // SECTION 7.0 - CATEGORIES
 ////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 7.1 - LOAD CATEGORIES
 async function loadCategories() {
   const res = await fetch('/api/categories');
   const data = await res.json();
@@ -183,12 +172,11 @@ async function loadCategories() {
   });
 }
 
-// SECTION 7.1 - OPEN CATEGORY
+// SECTION 7.2 - OPEN CATEGORY (RENDER SUBFORUMS)
 async function openCategory(c) {
   currentCategory = c;
 
   showView("subforums");
-
   document.getElementById('categoryTitle').innerText = c.name;
 
   const res = await fetch(`/api/subforums/${c._id}`);
@@ -207,37 +195,26 @@ async function openCategory(c) {
 
     el.innerHTML = `
       <div class="row">
-
-        <div class="row-left">
-          ${s.name}
-        </div>
-
-        <div class="row-center">
-          ${s.threadCount || 0} Threads
-        </div>
-
-        <div class="row-right">
-          ${date}
-        </div>
-
+        <div class="row-left">${s.name}</div>
+        <div class="row-center">${s.threadCount || 0} Threads</div>
+        <div class="row-right">${date}</div>
       </div>
     `;
 
     el.onclick = () => openSubforum(s);
-
     div.appendChild(el);
   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SECTION 9.0 - THREADS
+// SECTION 8.0 - SUBFORUMS
 ////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 8.1 - OPEN SUBFORUM
 async function openSubforum(s) {
   currentSubforum = s;
 
   showView("threads");
-
   document.getElementById('subforumTitle').innerText = s.name;
 
   const res = await fetch(`/api/threads/${s._id}`);
@@ -246,7 +223,11 @@ async function openSubforum(s) {
   renderThreads();
 }
 
-// SECTION 9.1 - Render threads (NEW ROW LAYOUT)
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 9.0 - THREADS
+////////////////////////////////////////////////////////////////////////////////
+
+// SECTION 9.1 - RENDER THREADS
 function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
@@ -261,27 +242,12 @@ function renderThreads() {
 
     el.innerHTML = `
       <div class="row">
-
-        <!-- LEFT: AUTHOR -->
-        <div class="row-left">
-          ${t.author}
-        </div>
-
-        <!-- CENTER: REPLIES -->
-        <div class="row-center">
-          ${t.replyCount || 0} Replies
-        </div>
-
-        <!-- RIGHT: LAST ACTIVITY -->
-        <div class="row-right">
-          ${date}
-        </div>
-
+        <div class="row-left">${t.author}</div>
+        <div class="row-center">${t.replyCount || 0} Replies</div>
+        <div class="row-right">${date}</div>
       </div>
 
-      <div style="margin-top:6px;">
-        <b>${t.title}</b>
-      </div>
+      <div style="margin-top:6px;"><b>${t.title}</b></div>
 
       <div style="margin-top:6px;">
         <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
@@ -289,13 +255,12 @@ function renderThreads() {
       </div>
     `;
 
-    el.addEventListener("click", () => openThread(t));
-
+    el.onclick = () => openThread(t);
     div.appendChild(el);
   });
 }
 
-// SECTION 9.2 - Create thread
+// SECTION 9.2 - CREATE THREAD
 async function createThread() {
   const title = document.getElementById('threadTitleInput').value;
 
@@ -312,8 +277,7 @@ async function createThread() {
   openSubforum(currentSubforum);
 }
 
-  // SECTION 9.3 - THREAD ACTIONS
-
+// SECTION 9.3 - EDIT THREAD
 async function editThread(e, id, oldTitle) {
   e.stopPropagation();
 
@@ -329,10 +293,11 @@ async function editThread(e, id, oldTitle) {
   openSubforum(currentSubforum);
 }
 
+// SECTION 9.4 - DELETE THREAD
 async function deleteThread(e, id) {
   e.stopPropagation();
 
-  if (!confirm("Delete this thread?")) return;
+  if (!confirm("Delete thread?")) return;
 
   await fetch(`/api/threads/${id}`, {
     method: "DELETE"
@@ -345,11 +310,11 @@ async function deleteThread(e, id) {
 // SECTION 10.0 - POSTS
 ////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 10.1 - OPEN THREAD
 async function openThread(t) {
   currentThread = t;
 
   showView("posts");
-
   document.getElementById('threadTitle').innerText = t.title;
 
   const res = await fetch(`/api/posts/${t._id}`);
@@ -358,7 +323,7 @@ async function openThread(t) {
   renderPosts();
 }
 
-// SECTION 10.1 - Render posts (WITH ACTIONS)
+// SECTION 10.2 - RENDER POSTS
 function renderPosts() {
   const div = document.getElementById('posts');
   div.innerHTML = '';
@@ -367,7 +332,9 @@ function renderPosts() {
     const el = document.createElement('div');
     el.className = 'box';
 
-    const date = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
+    const date = p.createdAt
+      ? new Date(p.createdAt).toLocaleString()
+      : "";
 
     el.innerHTML = `
       <b>${p.author}</b> <small>${date}</small><br>
@@ -381,7 +348,7 @@ function renderPosts() {
   });
 }
 
-// SECTION 10.2 - Add post
+// SECTION 10.3 - ADD POST
 async function addPost() {
   await fetch('/api/posts', {
     method: 'POST',
@@ -396,8 +363,7 @@ async function addPost() {
   openThread(currentThread);
 }
 
-  // SECTION 10.3 - POST ACTIONS
-
+// SECTION 10.4 - EDIT POST
 async function editPost(e, id, oldText) {
   e.stopPropagation();
 
@@ -413,10 +379,11 @@ async function editPost(e, id, oldText) {
   openThread(currentThread);
 }
 
+// SECTION 10.5 - DELETE POST
 async function deletePost(e, id) {
   e.stopPropagation();
 
-  if (!confirm("Delete this post?")) return;
+  if (!confirm("Delete post?")) return;
 
   await fetch(`/api/posts/${id}`, {
     method: "DELETE"
@@ -424,12 +391,12 @@ async function deletePost(e, id) {
 
   openThread(currentThread);
 }
-  
+
 ////////////////////////////////////////////////////////////////////////////////
-// SECTION 11.0 - NAVIGATION (FIXED CLEAN BACK SYSTEM)
+// SECTION 11.0 - NAVIGATION
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 11.1 - Back to categories (FULL RESET FIX)
+// SECTION 11.1 - BACK TO CATEGORIES
 function goCategories() {
   currentCategory = null;
   currentSubforum = null;
@@ -439,13 +406,13 @@ function goCategories() {
   showView("categories");
 }
 
-// SECTION 11.2 - Back to subforums
+// SECTION 11.2 - BACK TO SUBFORUMS
 function goSubforums() {
   if (!currentCategory) return;
   openCategory(currentCategory);
 }
 
-// SECTION 11.3 - Back to threads
+// SECTION 11.3 - BACK TO THREADS
 function goThreads() {
   if (!currentSubforum) return;
   openSubforum(currentSubforum);
