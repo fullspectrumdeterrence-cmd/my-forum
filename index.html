@@ -194,10 +194,20 @@ function renderThreads() {
   div.innerHTML = '';
 
   threads.forEach(t => {
+
     const el = document.createElement('div');
     el.className = 'box';
 
-    el.innerHTML = `<b>${t.title}</b><br>by ${t.author}`;
+    const time = new Date(t.lastPostTime).toLocaleString();
+
+    el.innerHTML = `
+      <b>${t.title}</b><br>
+      by ${t.author}<br><br>
+
+      Replies: ${t.replyCount}<br>
+      Last post: ${t.lastPostAuthor} – ${time}
+    `;
+
     el.onclick = () => openThread(t);
 
     div.appendChild(el);
