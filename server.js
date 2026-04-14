@@ -125,22 +125,6 @@ app.get('/api/posts/:threadId', async (req, res) => {
 });
 
 app.post('/api/posts', async (req, res) => {
-  const { threadId, text, author } = req.body;
-
-  if (!threadId || !text || !author) {
-    return res.status(400).send("Missing data");
-  }
-
-  const now = new Date();
-
-  const post = {
-    threadId,
-    text,
-    author,
-    createdAt: now
-  };
-
- app.post('/api/posts', async (req, res) => {
   try {
     const { threadId, text, author } = req.body;
 
@@ -159,13 +143,16 @@ app.post('/api/posts', async (req, res) => {
 
     const result = await db.collection('posts').insertOne(post);
 
-    // 🔥 Update thread activity timestamp
+    // 🔥 Update thread metadata (XenForo-style)
     await db.collection('threads').updateOne(
       { _id: new ObjectId(threadId) },
       {
         $set: {
           lastActivity: now,
-          updatedAt: now
+          lastPostAuthor: author
+        },
+        $inc: {
+          replyCount: 1
         }
       }
     );
