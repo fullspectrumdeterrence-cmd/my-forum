@@ -195,7 +195,7 @@ async function openSubforum(s) {
   renderThreads();
 }
 
-// SECTION 9.1 - Render threads
+// SECTION 9.1 - Render threads (WITH ACTIONS)
 function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
@@ -209,10 +209,13 @@ function renderThreads() {
     el.innerHTML = `
       <b>${t.title}</b><br>
       by ${t.author}<br>
-      <small>${date} • ${t.replyCount || 0} replies</small>
+      <small>${date} • ${t.replyCount || 0} replies</small><br>
+
+      <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
+      <button onclick="deleteThread(event,'${t._id}')">Delete</button>
     `;
 
-    el.onclick = () => openThread(t);
+    el.addEventListener("click", () => openThread(t));
 
     div.appendChild(el);
   });
@@ -235,6 +238,35 @@ async function createThread() {
   openSubforum(currentSubforum);
 }
 
+  // SECTION 9.3 - THREAD ACTIONS
+
+async function editThread(e, id, oldTitle) {
+  e.stopPropagation();
+
+  const title = prompt("Edit thread title:", oldTitle);
+  if (!title) return;
+
+  await fetch(`/api/threads/${id}`, {
+    method: "PUT",
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ title })
+  });
+
+  openSubforum(currentSubforum);
+}
+
+async function deleteThread(e, id) {
+  e.stopPropagation();
+
+  if (!confirm("Delete this thread?")) return;
+
+  await fetch(`/api/threads/${id}`, {
+    method: "DELETE"
+  });
+
+  openSubforum(currentSubforum);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 10.0 - POSTS
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,7 +284,7 @@ async function openThread(t) {
   renderPosts();
 }
 
-// SECTION 10.1 - Render posts
+// SECTION 10.1 - Render posts (WITH ACTIONS)
 function renderPosts() {
   const div = document.getElementById('posts');
   div.innerHTML = '';
@@ -265,7 +297,10 @@ function renderPosts() {
 
     el.innerHTML = `
       <b>${p.author}</b> <small>${date}</small><br>
-      ${p.text}
+      ${p.text}<br>
+
+      <button onclick="editPost(event,'${p._id}','${p.text}')">Edit</button>
+      <button onclick="deletePost(event,'${p._id}')">Delete</button>
     `;
 
     div.appendChild(el);
@@ -287,6 +322,35 @@ async function addPost() {
   openThread(currentThread);
 }
 
+  // SECTION 10.3 - POST ACTIONS
+
+async function editPost(e, id, oldText) {
+  e.stopPropagation();
+
+  const text = prompt("Edit post:", oldText);
+  if (!text) return;
+
+  await fetch(`/api/posts/${id}`, {
+    method: "PUT",
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ text })
+  });
+
+  openThread(currentThread);
+}
+
+async function deletePost(e, id) {
+  e.stopPropagation();
+
+  if (!confirm("Delete this post?")) return;
+
+  await fetch(`/api/posts/${id}`, {
+    method: "DELETE"
+  });
+
+  openThread(currentThread);
+}
+  
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 11.0 - NAVIGATION (FIXED CLEAN BACK SYSTEM)
 ////////////////////////////////////////////////////////////////////////////////
