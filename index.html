@@ -65,10 +65,9 @@ let posts = [];
 // =====================
 // USER SYSTEM (FIXED)
 // =====================
-
-// restore user on page load
 const usernameInput = document.getElementById('username');
 
+// restore user on page load
 const savedUser = localStorage.getItem("user");
 if (savedUser) {
   usernameInput.value = savedUser;
@@ -77,13 +76,20 @@ if (savedUser) {
 // save user
 function saveUser() {
   const name = usernameInput.value.trim();
-
   if (!name) return;
 
   localStorage.setItem("user", name);
 }
 
+// helper
+function getUser() {
+  return usernameInput.value.trim() || "Guest";
+}
+
+
+// =====================
 // INIT
+// =====================
 loadCategories();
 
 async function loadCategories() {
@@ -158,11 +164,12 @@ function renderThreads() {
       <button onclick="deleteThread('${t._id}')">Delete</button>
     `;
 
-    el.onclick = (e) => {
-      if (!e.target.tagName === "BUTTON") openThread(t);
-    };
-
-    el.addEventListener("click", () => openThread(t));
+    // FIXED: prevent click conflict
+    el.addEventListener("click", (e) => {
+      if (e.target.tagName !== "BUTTON") {
+        openThread(t);
+      }
+    });
 
     div.appendChild(el);
   });
@@ -232,6 +239,7 @@ async function addPost() {
   openThread(currentThread);
 }
 
+// navigation
 function backToCategories(){ location.reload(); }
 function backToSubforums(){ openCategory(currentCategory); }
 function backToThreads(){ openSubforum(currentSubforum); }
