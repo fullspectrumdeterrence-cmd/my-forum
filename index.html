@@ -62,13 +62,25 @@ let currentCategory, currentSubforum, currentThread;
 let threads = [];
 let posts = [];
 
-// USER
-function saveUser() {
-  localStorage.setItem("user", document.getElementById("username").value);
+// =====================
+// USER SYSTEM (FIXED)
+// =====================
+
+// restore user on page load
+const usernameInput = document.getElementById('username');
+
+const savedUser = localStorage.getItem("user");
+if (savedUser) {
+  usernameInput.value = savedUser;
 }
 
-function getUser() {
-  return document.getElementById("username").value || "Guest";
+// save user
+function saveUser() {
+  const name = usernameInput.value.trim();
+
+  if (!name) return;
+
+  localStorage.setItem("user", name);
 }
 
 // INIT
