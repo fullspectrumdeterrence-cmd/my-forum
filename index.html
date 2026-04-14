@@ -24,22 +24,29 @@
 
 <h1>My Forum</h1>
 
-<!-- ================= USER ================= -->
+<!-- ===================================================== -->
+<!-- SECTION 1.0 - USER SYSTEM UI -->
+<!-- ===================================================== -->
 <input id="username" placeholder="Username">
 <button onclick="saveUser()">Save</button>
 
 <hr>
 
-<!-- ================= VIEWS ================= -->
+<!-- ===================================================== -->
+<!-- SECTION 2.0 - VIEW CONTAINERS (CORE UI PAGES) -->
+<!-- ===================================================== -->
 
+<!-- SECTION 2.1 - CATEGORY VIEW -->
 <div id="viewCategories"></div>
 
+<!-- SECTION 2.2 - SUBFORUM VIEW -->
 <div id="viewSubforums" class="hidden">
   <button onclick="goCategories()">← Back</button>
   <h2 id="categoryTitle"></h2>
   <div id="subforums"></div>
 </div>
 
+<!-- SECTION 2.3 - THREAD VIEW -->
 <div id="viewThreads" class="hidden">
   <button onclick="goSubforums()">← Back</button>
   <h2 id="subforumTitle"></h2>
@@ -50,6 +57,7 @@
   <div id="threads"></div>
 </div>
 
+<!-- SECTION 2.4 - POSTS VIEW -->
 <div id="viewPosts" class="hidden">
   <button onclick="goThreads()">← Back</button>
 
@@ -63,7 +71,10 @@
 
 <script>
 
-// ================= STATE =================
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 3.0 - STATE MANAGEMENT
+////////////////////////////////////////////////////////////////////////////////
+
 let currentCategory = null;
 let currentSubforum = null;
 let currentThread = null;
@@ -71,26 +82,60 @@ let currentThread = null;
 let threads = [];
 let posts = [];
 
-// ================= USER SYSTEM (FIXED) =================
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 4.0 - USER SYSTEM
+////////////////////////////////////////////////////////////////////////////////
+
+// SECTION 4.1 - Load user from localStorage
 const usernameInput = document.getElementById('username');
-
 const savedUser = localStorage.getItem("user");
-if (savedUser) usernameInput.value = savedUser;
 
+if (savedUser) {
+  usernameInput.value = savedUser;
+}
+
+// SECTION 4.2 - Save user
 function saveUser() {
   const name = usernameInput.value.trim();
   if (!name) return;
   localStorage.setItem("user", name);
 }
 
+// SECTION 4.3 - Get user
 function getUser() {
   return localStorage.getItem("user") || "Anonymous";
 }
 
-// ================= INIT =================
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 5.0 - VIEW CONTROLLER (FIXED STACK ISSUE 🔥)
+////////////////////////////////////////////////////////////////////////////////
+
+// SECTION 5.1 - MASTER VIEW SWITCHER (IMPORTANT FIX)
+function showView(viewName) {
+  const views = ["Categories", "Subforums", "Threads", "Posts"];
+
+  views.forEach(v => {
+    document.getElementById("view" + v).classList.add("hidden");
+  });
+
+  document.getElementById("view" + capitalize(viewName)).classList.remove("hidden");
+}
+
+// SECTION 5.2 - HELPER
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 6.0 - INIT
+////////////////////////////////////////////////////////////////////////////////
+
 loadCategories();
 
-// ================= CATEGORY =================
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 7.0 - CATEGORIES
+////////////////////////////////////////////////////////////////////////////////
+
 async function loadCategories() {
   const res = await fetch('/api/categories');
   const data = await res.json();
@@ -107,10 +152,14 @@ async function loadCategories() {
   });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 8.0 - SUBFORUMS
+////////////////////////////////////////////////////////////////////////////////
+
 async function openCategory(c) {
   currentCategory = c;
 
-  showOnly("categories", "subforums");
+  showView("subforums");
 
   document.getElementById('categoryTitle').innerText = c.name;
 
@@ -129,11 +178,14 @@ async function openCategory(c) {
   });
 }
 
-// ================= SUBFORUM =================
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 9.0 - THREADS
+////////////////////////////////////////////////////////////////////////////////
+
 async function openSubforum(s) {
   currentSubforum = s;
 
-  showOnly("subforums", "threads");
+  showView("threads");
 
   document.getElementById('subforumTitle').innerText = s.name;
 
@@ -143,7 +195,7 @@ async function openSubforum(s) {
   renderThreads();
 }
 
-// ================= THREADS =================
+// SECTION 9.1 - Render threads
 function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
@@ -157,18 +209,16 @@ function renderThreads() {
     el.innerHTML = `
       <b>${t.title}</b><br>
       by ${t.author}<br>
-      <small>${date} • ${t.replyCount || 0} replies</small><br>
-
-      <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
-      <button onclick="deleteThread(event,'${t._id}')">Delete</button>
+      <small>${date} • ${t.replyCount || 0} replies</small>
     `;
 
-    el.addEventListener("click", () => openThread(t));
+    el.onclick = () => openThread(t);
 
     div.appendChild(el);
   });
 }
 
+// SECTION 9.2 - Create thread
 async function createThread() {
   const title = document.getElementById('threadTitleInput').value;
 
@@ -185,39 +235,14 @@ async function createThread() {
   openSubforum(currentSubforum);
 }
 
-// ================= THREAD ACTIONS =================
-async function editThread(e, id, oldTitle) {
-  e.stopPropagation();
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 10.0 - POSTS
+////////////////////////////////////////////////////////////////////////////////
 
-  const newTitle = prompt("Edit thread title:", oldTitle);
-  if (!newTitle) return;
-
-  await fetch(`/api/threads/${id}`, {
-    method: "PUT",
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title: newTitle })
-  });
-
-  openSubforum(currentSubforum);
-}
-
-async function deleteThread(e, id) {
-  e.stopPropagation();
-
-  if (!confirm("Delete thread?")) return;
-
-  await fetch(`/api/threads/${id}`, {
-    method: "DELETE"
-  });
-
-  openSubforum(currentSubforum);
-}
-
-// ================= POSTS =================
 async function openThread(t) {
   currentThread = t;
 
-  showOnly("threads", "posts");
+  showView("posts");
 
   document.getElementById('threadTitle').innerText = t.title;
 
@@ -227,6 +252,7 @@ async function openThread(t) {
   renderPosts();
 }
 
+// SECTION 10.1 - Render posts
 function renderPosts() {
   const div = document.getElementById('posts');
   div.innerHTML = '';
@@ -238,18 +264,15 @@ function renderPosts() {
     const date = p.createdAt ? new Date(p.createdAt).toLocaleString() : "";
 
     el.innerHTML = `
-      <b>${p.author}</b>
-      <small>${date}</small><br>
-      ${p.text}<br>
-
-      <button onclick="editPost(event,'${p._id}','${p.text}')">Edit</button>
-      <button onclick="deletePost(event,'${p._id}')">Delete</button>
+      <b>${p.author}</b> <small>${date}</small><br>
+      ${p.text}
     `;
 
     div.appendChild(el);
   });
 }
 
+// SECTION 10.2 - Add post
 async function addPost() {
   await fetch('/api/posts', {
     method: 'POST',
@@ -264,54 +287,30 @@ async function addPost() {
   openThread(currentThread);
 }
 
-// ================= POST ACTIONS =================
-async function editPost(e, id, oldText) {
-  e.stopPropagation();
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 11.0 - NAVIGATION (FIXED CLEAN BACK SYSTEM)
+////////////////////////////////////////////////////////////////////////////////
 
-  const text = prompt("Edit post:", oldText);
-  if (!text) return;
-
-  await fetch(`/api/posts/${id}`, {
-    method: "PUT",
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ text })
-  });
-
-  openThread(currentThread);
-}
-
-async function deletePost(e, id) {
-  e.stopPropagation();
-
-  if (!confirm("Delete post?")) return;
-
-  await fetch(`/api/posts/${id}`, {
-    method: "DELETE"
-  });
-
-  openThread(currentThread);
-}
-
-// ================= NAVIGATION (FIXED STACK ISSUE) =================
-function showOnly(hide, show) {
-  document.getElementById(`view${capitalize(hide)}`).classList.add("hidden");
-  document.getElementById(`view${capitalize(show)}`).classList.remove("hidden");
-}
-
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
+// SECTION 11.1 - Back to categories (FULL RESET FIX)
 function goCategories() {
-  location.reload();
+  currentCategory = null;
+  currentSubforum = null;
+  currentThread = null;
+
+  loadCategories();
+  showView("categories");
 }
 
+// SECTION 11.2 - Back to subforums
 function goSubforums() {
-  showOnly("subforums", "categories");
+  if (!currentCategory) return;
+  openCategory(currentCategory);
 }
 
+// SECTION 11.3 - Back to threads
 function goThreads() {
-  showOnly("posts", "threads");
+  if (!currentSubforum) return;
+  openSubforum(currentSubforum);
 }
 
 </script>
