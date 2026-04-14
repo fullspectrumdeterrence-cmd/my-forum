@@ -5,31 +5,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =========================
-// DB CONNECTION
+// DB
 // =========================
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
-
 let db;
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
 async function connectDB() {
-  try {
-    await client.connect();
-    db = client.db("forumDB");
-    console.log("✅ MongoDB connected");
-  } catch (err) {
-    console.error("❌ DB error:", err);
-  }
+  await client.connect();
+  db = client.db("forumDB");
+  console.log("✅ MongoDB connected");
 }
-
 connectDB();
 
 
 // =========================
-// ROLE HELPERS
+// ROLES
 // =========================
 function canModerate(role) {
   return role === "admin" || role === "mod";
@@ -37,42 +31,10 @@ function canModerate(role) {
 
 
 // =========================
-// USERS (BASIC ROLE SYSTEM)
-// =========================
-app.get('/api/users', async (req, res) => {
-  const users = await db.collection('users').find().toArray();
-  res.json(users);
-});
-
-app.post('/api/users', async (req, res) => {
-  const { username, role } = req.body;
-
-  if (!username) return res.status(400).send("Missing username");
-
-  const user = {
-    username,
-    role: role || "user"
-  };
-
-  const result = await db.collection('users').insertOne(user);
-  res.json({ ...user, _id: result.insertedId });
-});
-
-
-// =========================
 // CATEGORIES
 // =========================
 app.get('/api/categories', async (req, res) => {
-  const data = await db.collection('categories').find().toArray();
-  res.json(data);
-});
-
-app.post('/api/categories', async (req, res) => {
-  const result = await db.collection('categories').insertOne({
-    name: req.body.name
-  });
-
-  res.json({ _id: result.insertedId, name: req.body.name });
+  res.json(await db.collection('categories').find().toArray());
 });
 
 
@@ -80,24 +42,9 @@ app.post('/api/categories', async (req, res) => {
 // SUBFORUMS
 // =========================
 app.get('/api/subforums/:categoryId', async (req, res) => {
-  const data = await db.collection('subforums')
+  res.json(await db.collection('subforums')
     .find({ categoryId: req.params.categoryId.toString() })
-    .toArray();
-
-  res.json(data);
-});
-
-app.post('/api/subforums', async (req, res) => {
-  const result = await db.collection('subforums').insertOne({
-    name: req.body.name,
-    categoryId: req.body.categoryId
-  });
-
-  res.json({
-    _id: result.insertedId,
-    name: req.body.name,
-    categoryId: req.body.categoryId
-  });
+    .toArray());
 });
 
 
@@ -105,16 +52,16 @@ app.post('/api/subforums', async (req, res) => {
 // THREADS
 // =========================
 app.get('/api/threads/:subforumId', async (req, res) => {
-  const data = await db.collection('threads')
+  const threads = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
-    .sort({ pinned: -1, lastActivity: -1, createdAt: -1 })
+    .sort({ pinned: -1, lastActivity: -1 })
     .toArray();
 
-  res.json(data);
+  res.json(threads);
 });
 
 app.post('/api/threads', async (req, res) => {
-  const { title, subforumId, author, role } = req.body;
+  const { title, subforumId, author } = req.body;
 
   if (!title || !subforumId || !author) {
     return res.status(400).send("Missing data");
@@ -126,10 +73,10 @@ app.post('/api/threads', async (req, res) => {
     title,
     subforumId,
     author,
-    role: role || "user",
     createdAt: now,
     lastActivity: now,
     replyCount: 0,
+    lastPostAuthor: null,
     pinned: false,
     locked: false
   };
@@ -142,53 +89,23 @@ app.post('/api/threads', async (req, res) => {
 // =========================
 // THREAD MODERATION
 // =========================
-app.put('/api/threads/:id/pin', async (req, res) => {
-  if (!canModerate(req.body.role)) {
-    return res.status(403).send("No permission");
-  }
+app.put('/api/threads/:id/:action', async (req, res) => {
+  const { role } = req.body;
+  if (!canModerate(role)) return res.status(403).send("No permission");
+
+  const id = new ObjectId(req.params.id);
+  const action = req.params.action;
+
+  const update = {};
+
+  if (action === "pin") update.pinned = true;
+  if (action === "unpin") update.pinned = false;
+  if (action === "lock") update.locked = true;
+  if (action === "unlock") update.locked = false;
 
   await db.collection('threads').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { pinned: true } }
-  );
-
-  res.json({ success: true });
-});
-
-app.put('/api/threads/:id/unpin', async (req, res) => {
-  if (!canModerate(req.body.role)) {
-    return res.status(403).send("No permission");
-  }
-
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { pinned: false } }
-  );
-
-  res.json({ success: true });
-});
-
-app.put('/api/threads/:id/lock', async (req, res) => {
-  if (!canModerate(req.body.role)) {
-    return res.status(403).send("No permission");
-  }
-
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { locked: true } }
-  );
-
-  res.json({ success: true });
-});
-
-app.put('/api/threads/:id/unlock', async (req, res) => {
-  if (!canModerate(req.body.role)) {
-    return res.status(403).send("No permission");
-  }
-
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(req.params.id) },
-    { $set: { locked: false } }
+    { _id: id },
+    { $set: update }
   );
 
   res.json({ success: true });
@@ -196,84 +113,72 @@ app.put('/api/threads/:id/unlock', async (req, res) => {
 
 
 // =========================
-// POSTS (REPLIES)
+// POSTS
 // =========================
 app.get('/api/posts/:threadId', async (req, res) => {
-  const data = await db.collection('posts')
+  res.json(await db.collection('posts')
     .find({ threadId: req.params.threadId })
     .sort({ createdAt: 1 })
-    .toArray();
-
-  res.json(data);
+    .toArray());
 });
 
 app.post('/api/posts', async (req, res) => {
-  try {
-    const { threadId, text, author } = req.body;
+  const { threadId, text, author } = req.body;
 
-    if (!threadId || !text || !author) {
-      return res.status(400).send("Missing data");
-    }
-
-    const now = new Date();
-
-    const post = {
-      threadId,
-      text,
-      author,
-      createdAt: now
-    };
-
-    const result = await db.collection('posts').insertOne(post);
-
-    // 🔥 XenForo-style thread bump
-    await db.collection('threads').updateOne(
-      { _id: new ObjectId(threadId) },
-      {
-        $set: {
-          lastActivity: now,
-          lastPostAuthor: author
-        },
-        $inc: {
-          replyCount: 1
-        }
-      }
-    );
-
-    res.json({ ...post, _id: result.insertedId });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error creating post");
+  if (!threadId || !text || !author) {
+    return res.status(400).send("Missing data");
   }
+
+  const now = new Date();
+
+  const post = {
+    threadId,
+    text,
+    author,
+    createdAt: now
+  };
+
+  const result = await db.collection('posts').insertOne(post);
+
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(threadId) },
+    {
+      $set: {
+        lastActivity: now,
+        lastPostAuthor: author
+      },
+      $inc: {
+        replyCount: 1
+      }
+    }
+  );
+
+  res.json({ ...post, _id: result.insertedId });
 });
 
 
 // =========================
-// SEED DATABASE
+// SEED
 // =========================
 app.get('/api/seed', async (req, res) => {
   await db.collection('categories').deleteMany({});
   await db.collection('subforums').deleteMany({});
   await db.collection('threads').deleteMany({});
   await db.collection('posts').deleteMany({});
-  await db.collection('users').deleteMany({});
 
-  const cat1 = await db.collection('categories').insertOne({ name: "General" });
-  const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
+  const cat = await db.collection('categories').insertOne({ name: "General" });
 
   await db.collection('subforums').insertMany([
-    { name: "Announcements", categoryId: cat1.insertedId.toString() },
-    { name: "Introductions", categoryId: cat1.insertedId.toString() },
-    { name: "Military News", categoryId: cat2.insertedId.toString() }
+    { name: "Announcements", categoryId: cat.insertedId.toString() },
+    { name: "Introductions", categoryId: cat.insertedId.toString() }
   ]);
 
-  res.send("Seeded forum with categories, subforums, threads, posts, users");
+  res.send("Seeded clean forum structure");
 });
 
 
 // =========================
-// START SERVER
+// START
 // =========================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
