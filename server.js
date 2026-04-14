@@ -4,37 +4,43 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// =========================
-// DB
-// =========================
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
+
 let db;
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// =========================
+// CONNECT DB
+// =========================
 async function connectDB() {
-  await client.connect();
-  db = client.db("forumDB");
-  console.log("✅ MongoDB connected");
+  try {
+    await client.connect();
+    db = client.db("forumDB");
+    console.log("✅ MongoDB connected");
+  } catch (err) {
+    console.error("❌ DB error:", err);
+  }
 }
 connectDB();
-
-
-// =========================
-// ROLES
-// =========================
-function canModerate(role) {
-  return role === "admin" || role === "mod";
-}
 
 
 // =========================
 // CATEGORIES
 // =========================
 app.get('/api/categories', async (req, res) => {
-  res.json(await db.collection('categories').find().toArray());
+  const data = await db.collection('categories').find().toArray();
+  res.json(data);
+});
+
+app.post('/api/categories', async (req, res) => {
+  const result = await db.collection('categories').insertOne({
+    name: req.body.name
+  });
+
+  res.json({ _id: result.insertedId, name: req.body.name });
 });
 
 
@@ -42,9 +48,20 @@ app.get('/api/categories', async (req, res) => {
 // SUBFORUMS
 // =========================
 app.get('/api/subforums/:categoryId', async (req, res) => {
-  res.json(await db.collection('subforums')
-    .find({ categoryId: req.params.categoryId.toString() })
-    .toArray());
+  const data = await db.collection('subforums')
+    .find({ categoryId: req.params.categoryId })
+    .toArray();
+
+  res.json(data);
+});
+
+app.post('/api/subforums', async (req, res) => {
+  const result = await db.collection('subforums').insertOne({
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+
+  res.json({ _id: result.insertedId, ...req.body });
 });
 
 
@@ -52,61 +69,46 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
 // THREADS
 // =========================
 app.get('/api/threads/:subforumId', async (req, res) => {
-  const threads = await db.collection('threads')
+  const data = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
-    .sort({ pinned: -1, lastActivity: -1 })
+    .sort({ lastActivity: -1, createdAt: -1 })
     .toArray();
 
-  res.json(threads);
+  res.json(data);
 });
 
 app.post('/api/threads', async (req, res) => {
-  const { title, subforumId, author } = req.body;
-
-  if (!title || !subforumId || !author) {
-    return res.status(400).send("Missing data");
-  }
-
   const now = new Date();
 
   const thread = {
-    title,
-    subforumId,
-    author,
+    title: req.body.title,
+    subforumId: req.body.subforumId,
+    author: req.body.author,
     createdAt: now,
     lastActivity: now,
     replyCount: 0,
-    lastPostAuthor: null,
     pinned: false,
     locked: false
   };
 
   const result = await db.collection('threads').insertOne(thread);
+
   res.json({ ...thread, _id: result.insertedId });
 });
 
-
-// =========================
-// THREAD MODERATION
-// =========================
-app.put('/api/threads/:id/:action', async (req, res) => {
-  const { role } = req.body;
-  if (!canModerate(role)) return res.status(403).send("No permission");
-
-  const id = new ObjectId(req.params.id);
-  const action = req.params.action;
-
-  const update = {};
-
-  if (action === "pin") update.pinned = true;
-  if (action === "unpin") update.pinned = false;
-  if (action === "lock") update.locked = true;
-  if (action === "unlock") update.locked = false;
-
+app.put('/api/threads/:id', async (req, res) => {
   await db.collection('threads').updateOne(
-    { _id: id },
-    { $set: update }
+    { _id: new ObjectId(req.params.id) },
+    { $set: { title: req.body.title } }
   );
+
+  res.json({ success: true });
+});
+
+app.delete('/api/threads/:id', async (req, res) => {
+  await db.collection('threads').deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
 
   res.json({ success: true });
 });
@@ -116,44 +118,59 @@ app.put('/api/threads/:id/:action', async (req, res) => {
 // POSTS
 // =========================
 app.get('/api/posts/:threadId', async (req, res) => {
-  res.json(await db.collection('posts')
+  const data = await db.collection('posts')
     .find({ threadId: req.params.threadId })
     .sort({ createdAt: 1 })
-    .toArray());
+    .toArray();
+
+  res.json(data);
 });
 
 app.post('/api/posts', async (req, res) => {
-  const { threadId, text, author } = req.body;
+  try {
+    const now = new Date();
 
-  if (!threadId || !text || !author) {
-    return res.status(400).send("Missing data");
-  }
+    const post = {
+      threadId: req.body.threadId,
+      text: req.body.text,
+      author: req.body.author,
+      createdAt: now
+    };
 
-  const now = new Date();
+    const result = await db.collection('posts').insertOne(post);
 
-  const post = {
-    threadId,
-    text,
-    author,
-    createdAt: now
-  };
-
-  const result = await db.collection('posts').insertOne(post);
-
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(threadId) },
-    {
-      $set: {
-        lastActivity: now,
-        lastPostAuthor: author
-      },
-      $inc: {
-        replyCount: 1
+    // update thread metadata
+    await db.collection('threads').updateOne(
+      { _id: new ObjectId(req.body.threadId) },
+      {
+        $set: { lastActivity: now },
+        $inc: { replyCount: 1 }
       }
-    }
+    );
+
+    res.json({ ...post, _id: result.insertedId });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating post");
+  }
+});
+
+app.put('/api/posts/:id', async (req, res) => {
+  await db.collection('posts').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { text: req.body.text } }
   );
 
-  res.json({ ...post, _id: result.insertedId });
+  res.json({ success: true });
+});
+
+app.delete('/api/posts/:id', async (req, res) => {
+  await db.collection('posts').deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
+
+  res.json({ success: true });
 });
 
 
@@ -163,22 +180,22 @@ app.post('/api/posts', async (req, res) => {
 app.get('/api/seed', async (req, res) => {
   await db.collection('categories').deleteMany({});
   await db.collection('subforums').deleteMany({});
-  await db.collection('threads').deleteMany({});
-  await db.collection('posts').deleteMany({});
 
-  const cat = await db.collection('categories').insertOne({ name: "General" });
+  const cat1 = await db.collection('categories').insertOne({ name: "General" });
+  const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
 
   await db.collection('subforums').insertMany([
-    { name: "Announcements", categoryId: cat.insertedId.toString() },
-    { name: "Introductions", categoryId: cat.insertedId.toString() }
+    { name: "Announcements", categoryId: cat1.insertedId.toString() },
+    { name: "Introductions", categoryId: cat1.insertedId.toString() },
+    { name: "Military News", categoryId: cat2.insertedId.toString() }
   ]);
 
-  res.send("Seeded clean forum structure");
+  res.send("Seeded categories + subforums");
 });
 
 
 // =========================
-// START
+// START SERVER
 // =========================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
