@@ -14,8 +14,6 @@
     }
 
     .hidden { display: none; }
-
-    small { color: #666; display: block; margin-top: 5px; }
   </style>
 </head>
 
@@ -28,50 +26,88 @@
 
 <hr>
 
-<div id="categoriesView"></div>
+<!-- ===================== -->
+<!-- VIEWS -->
+<!-- ===================== -->
+<div id="viewCategories"></div>
 
-<div id="subforumsView" class="hidden"></div>
+<div id="viewSubforums" class="hidden">
+  <button onclick="goCategories()">← Back</button>
+  <h2 id="categoryTitle"></h2>
+  <div id="subforums"></div>
+</div>
 
-<div id="threadsView" class="hidden"></div>
+<div id="viewThreads" class="hidden">
+  <button onclick="goSubforums()">← Back</button>
+  <h2 id="subforumTitle"></h2>
 
-<div id="postsView" class="hidden">
+  <input id="threadTitleInput" placeholder="New thread title">
+  <button onclick="createThread()">Create</button>
+
+  <div id="threads"></div>
+</div>
+
+<div id="viewPosts" class="hidden">
+  <button onclick="goThreads()">← Back</button>
+
   <h2 id="threadTitle"></h2>
+
   <div id="posts"></div>
 
   <textarea id="postText"></textarea>
   <button onclick="addPost()">Reply</button>
-
-  <br><br>
-  <button onclick="backToThreads()">Back</button>
 </div>
 
 <script>
 
-let currentCategory = null;
-let currentSubforum = null;
-let currentThread = null;
+// =====================
+// STATE
+// =====================
+let categories = [];
+let subforums = [];
 let threads = [];
 let posts = [];
 
+let currentCategory = null;
+let currentSubforum = null;
+let currentThread = null;
+
+// =====================
+// USER
+// =====================
 function saveUser() {
   localStorage.setItem("user", document.getElementById("username").value);
 }
 
-document.getElementById("username").value =
-  localStorage.getItem("user") || "";
+const saved = localStorage.getItem("user");
+if (saved) document.getElementById("username").value = saved;
 
+// =====================
+// NAVIGATION HELPERS
+// =====================
+function show(el) { el.classList.remove('hidden'); }
+function hide(el) { el.classList.add('hidden'); }
 
-// =========================
+function resetViews() {
+  hide(document.getElementById('viewCategories'));
+  hide(document.getElementById('viewSubforums'));
+  hide(document.getElementById('viewThreads'));
+  hide(document.getElementById('viewPosts'));
+}
+
+// =====================
 // LOAD CATEGORIES
-// =========================
+// =====================
 async function loadCategories() {
-  const res = await fetch('/api/categories');
-  const data = await res.json();
+  resetViews();
+  show(document.getElementById('viewCategories'));
 
-  const div = document.getElementById('categoriesView');
+  categories = await (await fetch('/api/categories')).json();
+
+  const div = document.getElementById('viewCategories');
   div.innerHTML = '';
 
-  data.forEach(c => {
+  categories.forEach(c => {
     const el = document.createElement('div');
     el.className = 'box';
     el.innerText = c.name;
@@ -82,23 +118,23 @@ async function loadCategories() {
   });
 }
 
+// =====================
+// CATEGORY → SUBFORUMS
+// =====================
+async function openCategory(cat) {
+  currentCategory = cat;
 
-// =========================
-// CATEGORY
-// =========================
-async function openCategory(category) {
-  currentCategory = category;
+  resetViews();
+  show(document.getElementById('viewSubforums'));
 
-  hideAll();
-  document.getElementById('subforumsView').classList.remove('hidden');
+  document.getElementById('categoryTitle').innerText = cat.name;
 
-  const res = await fetch(`/api/subforums/${category._id}`);
-  const data = await res.json();
+  subforums = await (await fetch(`/api/subforums/${cat._id}`)).json();
 
-  const div = document.getElementById('subforumsView');
-  div.innerHTML = `<h2>${category.name}</h2>`;
+  const div = document.getElementById('subforums');
+  div.innerHTML = '';
 
-  data.forEach(s => {
+  subforums.forEach(s => {
     const el = document.createElement('div');
     el.className = 'box';
     el.innerText = s.name;
@@ -107,58 +143,58 @@ async function openCategory(category) {
   });
 }
 
+// =====================
+// SUBFORUM → THREADS
+// =====================
+async function openSubforum(sub) {
+  currentSubforum = sub;
 
-// =========================
-// SUBFORUM
-// =========================
-async function openSubforum(subforum) {
-  currentSubforum = subforum;
+  resetViews();
+  show(document.getElementById('viewThreads'));
 
-  hideAll();
-  document.getElementById('threadsView').classList.remove('hidden');
+  document.getElementById('subforumTitle').innerText = sub.name;
 
-  const res = await fetch(`/api/threads/${subforum._id}`);
-  threads = await res.json();
+  threads = await (await fetch(`/api/threads/${sub._id}`)).json();
+  renderThreads();
+}
 
-  const div = document.getElementById('threadsView');
-  div.innerHTML = `<h2>${subforum.name}</h2>`;
+// =====================
+// THREADS
+// =====================
+function renderThreads() {
+  const div = document.getElementById('threads');
+  div.innerHTML = '';
 
   threads.forEach(t => {
     const el = document.createElement('div');
     el.className = 'box';
 
-    el.innerHTML = `
-      <b>${t.title}</b>
-      <small>${t.replyCount} replies • Last by ${t.lastPostAuthor || "N/A"}</small>
-    `;
+    el.innerHTML = `<b>${t.title}</b><br>by ${t.author}`;
 
     el.onclick = () => openThread(t);
+
     div.appendChild(el);
   });
 }
 
-
-// =========================
-// THREAD
-// =========================
+// =====================
+// THREAD → POSTS
+// =====================
 async function openThread(thread) {
   currentThread = thread;
 
-  hideAll();
-  document.getElementById('postsView').classList.remove('hidden');
+  resetViews();
+  show(document.getElementById('viewPosts'));
 
   document.getElementById('threadTitle').innerText = thread.title;
 
-  const res = await fetch(`/api/posts/${thread._id}`);
-  posts = await res.json();
-
+  posts = await (await fetch(`/api/posts/${thread._id}`)).json();
   renderPosts();
 }
 
-
-// =========================
+// =====================
 // POSTS
-// =========================
+// =====================
 function renderPosts() {
   const div = document.getElementById('posts');
   div.innerHTML = '';
@@ -171,10 +207,29 @@ function renderPosts() {
   });
 }
 
+// =====================
+// CREATE THREAD
+// =====================
+async function createThread() {
+  const title = document.getElementById('threadTitleInput').value;
+  const author = document.getElementById('username').value;
 
-// =========================
+  await fetch('/api/threads', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      title,
+      subforumId: currentSubforum._id,
+      author
+    })
+  });
+
+  openSubforum(currentSubforum);
+}
+
+// =====================
 // ADD POST
-// =========================
+// =====================
 async function addPost() {
   const text = document.getElementById('postText').value;
   const author = document.getElementById('username').value;
@@ -192,25 +247,24 @@ async function addPost() {
   openThread(currentThread);
 }
 
-
-// =========================
-// NAVIGATION FIX
-// =========================
-function hideAll() {
-  document.getElementById('categoriesView').classList.add('hidden');
-  document.getElementById('subforumsView').classList.add('hidden');
-  document.getElementById('threadsView').classList.add('hidden');
-  document.getElementById('postsView').classList.add('hidden');
+// =====================
+// BACK NAVIGATION (FIXED)
+// =====================
+function goCategories() {
+  loadCategories();
 }
 
-function backToThreads() {
+function goSubforums() {
+  openCategory(currentCategory);
+}
+
+function goThreads() {
   openSubforum(currentSubforum);
 }
 
-
-// =========================
+// =====================
 // INIT
-// =========================
+// =====================
 loadCategories();
 
 </script>
