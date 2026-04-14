@@ -160,23 +160,55 @@ function capitalize(s){
   return s.charAt(0).toUpperCase()+s.slice(1);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// SECTION 5.3 - BREADCRUMB SYSTEM
-////////////////////////////////////////////////////////////////////////////////
+// SECTION 5.3 - BREADCRUMB SYSTEM (FIXED CLICK HANDLING)
 
 function updateBreadcrumb() {
+  const el = document.getElementById("breadcrumb");
+
   let html = `<span onclick="goCategories()">Home</span>`;
 
-  if (currentCategory)
-    html += ` > <span onclick="openCategory(currentCategory)">${currentCategory.name}</span>`;
+  // SECTION 5.3.1 - CATEGORY
+  if (currentCategory) {
+    html += ` > <span onclick="handleCategoryClick('${currentCategory._id}')">
+      ${currentCategory.name}
+    </span>`;
+  }
 
-  if (currentSubforum)
-    html += ` > <span onclick="openSubforum(currentSubforum)">${currentSubforum.name}</span>`;
+  // SECTION 5.3.2 - SUBFORUM (FIXED)
+  if (currentSubforum) {
+    html += ` > <span onclick="handleSubforumClick('${currentSubforum._id}')">
+      ${currentSubforum.name}
+    </span>`;
+  }
 
-  if (currentThread)
-    html += ` > ${currentThread.title}`;
+  // SECTION 5.3.3 - THREAD (NOT CLICKABLE)
+  if (currentThread) {
+    html += ` > <span>
+      ${currentThread.title}
+    </span>`;
+  }
 
-  document.getElementById("breadcrumb").innerHTML = html;
+  el.innerHTML = html;
+}
+
+  // SECTION 5.4 - CATEGORY CLICK HANDLER
+
+async function handleCategoryClick(catId) {
+  const cats = await fetch('/api/categories').then(r => r.json());
+  const cat = cats.find(c => c._id === catId);
+  if (cat) openCategory(cat);
+}
+
+  // SECTION 5.5 - SUBFORUM CLICK HANDLER
+
+async function handleSubforumClick(subId) {
+  if (!currentCategory) return;
+
+  const subs = await fetch(`/api/subforums/${currentCategory._id}`)
+    .then(r => r.json());
+
+  const sub = subs.find(s => s._id === subId);
+  if (sub) openSubforum(sub);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
