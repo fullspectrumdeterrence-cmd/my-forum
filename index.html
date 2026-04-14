@@ -19,6 +19,12 @@
       font-size: 12px;
       cursor: pointer;
     }
+
+    .box small {
+  color: #666;
+  display: block;
+  margin-top: 5px;
+}
   </style>
 </head>
 
@@ -193,44 +199,26 @@ function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
 
-  // Create table
-  const table = document.createElement('table');
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
-
-  table.innerHTML = `
-    <tr style="background:#eee;">
-      <th style="text-align:left; padding:8px;">Thread</th>
-      <th style="padding:8px;">Author</th>
-      <th style="padding:8px;">Replies</th>
-      <th style="padding:8px;">Last Activity</th>
-    </tr>
-  `;
-
   threads.forEach(t => {
-    const row = document.createElement('tr');
-    row.style.borderBottom = '1px solid #ccc';
+    const el = document.createElement('div');
+    el.className = 'box';
 
-    const date = new Date(t.lastActivity || t.createdAt).toLocaleString();
+    const lastInfo = t.lastPostAuthor
+      ? `Last post by <b>${t.lastPostAuthor}</b>`
+      : `No replies yet`;
 
-    row.innerHTML = `
-      <td style="padding:8px; cursor:pointer; color:blue;">
-        ${t.title}
-      </td>
-      <td style="text-align:center;">${t.author}</td>
-      <td style="text-align:center;">${t.replyCount || 0}</td>
-      <td style="text-align:center; font-size:12px; color:gray;">
-        ${date}
-      </td>
+    const replies = t.replyCount ? `${t.replyCount} replies` : '0 replies';
+
+    el.innerHTML = `
+      <b>${t.title}</b><br>
+      by ${t.author}<br>
+      <small>${replies} • ${lastInfo}</small>
     `;
 
-    // Click opens thread
-    row.onclick = () => openThread(t);
+    el.onclick = () => openThread(t);
 
-    table.appendChild(row);
+    div.appendChild(el);
   });
-
-  div.appendChild(table);
 }
 
 // =====================
