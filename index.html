@@ -30,6 +30,23 @@
     .row-left { flex: 1; text-align: left; }
     .row-center { flex: 1; text-align: center; }
     .row-right { flex: 1; text-align: right; font-size: 12px; color: #666; }
+
+    /* SECTION 2.5.2 - BREADCRUMB INTERACTIVITY */
+
+#breadcrumb span {
+  cursor: pointer;
+  color: #007BFF;
+}
+
+#breadcrumb span:hover {
+  text-decoration: underline;
+}
+
+#breadcrumb span:last-child {
+  cursor: default;
+  color: black;
+  text-decoration: none;
+}
   </style>
 </head>
 
