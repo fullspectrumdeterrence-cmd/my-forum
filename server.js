@@ -29,11 +29,50 @@ connectDB();
 
 
 // =========================
+// ROLE HELPERS
+// =========================
+function canModerate(role) {
+  return role === "admin" || role === "mod";
+}
+
+
+// =========================
+// USERS (BASIC ROLE SYSTEM)
+// =========================
+app.get('/api/users', async (req, res) => {
+  const users = await db.collection('users').find().toArray();
+  res.json(users);
+});
+
+app.post('/api/users', async (req, res) => {
+  const { username, role } = req.body;
+
+  if (!username) return res.status(400).send("Missing username");
+
+  const user = {
+    username,
+    role: role || "user"
+  };
+
+  const result = await db.collection('users').insertOne(user);
+  res.json({ ...user, _id: result.insertedId });
+});
+
+
+// =========================
 // CATEGORIES
 // =========================
 app.get('/api/categories', async (req, res) => {
   const data = await db.collection('categories').find().toArray();
   res.json(data);
+});
+
+app.post('/api/categories', async (req, res) => {
+  const result = await db.collection('categories').insertOne({
+    name: req.body.name
+  });
+
+  res.json({ _id: result.insertedId, name: req.body.name });
 });
 
 
@@ -48,9 +87,22 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
   res.json(data);
 });
 
+app.post('/api/subforums', async (req, res) => {
+  const result = await db.collection('subforums').insertOne({
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+
+  res.json({
+    _id: result.insertedId,
+    name: req.body.name,
+    categoryId: req.body.categoryId
+  });
+});
+
 
 // =========================
-// THREADS (SORT BY LAST ACTIVITY)
+// THREADS
 // =========================
 app.get('/api/threads/:subforumId', async (req, res) => {
   const data = await db.collection('threads')
@@ -62,7 +114,7 @@ app.get('/api/threads/:subforumId', async (req, res) => {
 });
 
 app.post('/api/threads', async (req, res) => {
-  const { title, subforumId, author } = req.body;
+  const { title, subforumId, author, role } = req.body;
 
   if (!title || !subforumId || !author) {
     return res.status(400).send("Missing data");
@@ -74,6 +126,7 @@ app.post('/api/threads', async (req, res) => {
     title,
     subforumId,
     author,
+    role: role || "user",
     createdAt: now,
     lastActivity: now,
     replyCount: 0,
@@ -82,43 +135,62 @@ app.post('/api/threads', async (req, res) => {
   };
 
   const result = await db.collection('threads').insertOne(thread);
-
   res.json({ ...thread, _id: result.insertedId });
 });
 
 
 // =========================
-// THREAD ACTIONS
+// THREAD MODERATION
 // =========================
 app.put('/api/threads/:id/pin', async (req, res) => {
+  if (!canModerate(req.body.role)) {
+    return res.status(403).send("No permission");
+  }
+
   await db.collection('threads').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: { pinned: true } }
   );
+
   res.json({ success: true });
 });
 
 app.put('/api/threads/:id/unpin', async (req, res) => {
+  if (!canModerate(req.body.role)) {
+    return res.status(403).send("No permission");
+  }
+
   await db.collection('threads').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: { pinned: false } }
   );
+
   res.json({ success: true });
 });
 
 app.put('/api/threads/:id/lock', async (req, res) => {
+  if (!canModerate(req.body.role)) {
+    return res.status(403).send("No permission");
+  }
+
   await db.collection('threads').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: { locked: true } }
   );
+
   res.json({ success: true });
 });
 
 app.put('/api/threads/:id/unlock', async (req, res) => {
+  if (!canModerate(req.body.role)) {
+    return res.status(403).send("No permission");
+  }
+
   await db.collection('threads').updateOne(
     { _id: new ObjectId(req.params.id) },
     { $set: { locked: false } }
   );
+
   res.json({ success: true });
 });
 
@@ -154,7 +226,7 @@ app.post('/api/posts', async (req, res) => {
 
     const result = await db.collection('posts').insertOne(post);
 
-    // 🔥 Update thread activity (THIS is the XenForo behaviour)
+    // 🔥 XenForo-style thread bump
     await db.collection('threads').updateOne(
       { _id: new ObjectId(threadId) },
       {
@@ -178,13 +250,14 @@ app.post('/api/posts', async (req, res) => {
 
 
 // =========================
-// SEED
+// SEED DATABASE
 // =========================
 app.get('/api/seed', async (req, res) => {
   await db.collection('categories').deleteMany({});
   await db.collection('subforums').deleteMany({});
   await db.collection('threads').deleteMany({});
   await db.collection('posts').deleteMany({});
+  await db.collection('users').deleteMany({});
 
   const cat1 = await db.collection('categories').insertOne({ name: "General" });
   const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
@@ -195,7 +268,7 @@ app.get('/api/seed', async (req, res) => {
     { name: "Military News", categoryId: cat2.insertedId.toString() }
   ]);
 
-  res.send("Seeded categories + subforums + cleared threads/posts");
+  res.send("Seeded forum with categories, subforums, threads, posts, users");
 });
 
 
