@@ -69,8 +69,32 @@
   <button onclick="addPost()">Reply</button>
 </div>
 
-<script>
+  <script>
+    
+/* SECTION 2.5 - ROW LAYOUT FOR THREAD/STATS */
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
 
+.row-left {
+  flex: 1;
+  text-align: left;
+}
+
+.row-center {
+  flex: 1;
+  text-align: center;
+}
+
+.row-right {
+  flex: 1;
+  text-align: right;
+  font-size: 12px;
+  color: #666;
+}
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 3.0 - STATE MANAGEMENT
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,27 +180,39 @@ async function loadCategories() {
 // SECTION 8.0 - SUBFORUMS
 ////////////////////////////////////////////////////////////////////////////////
 
-async function openCategory(c) {
-  currentCategory = c;
+data.forEach(s => {
+  const el = document.createElement('div');
+  el.className = 'box';
 
-  showView("subforums");
+  const date = s.lastActivity
+    ? new Date(s.lastActivity).toLocaleString()
+    : "";
 
-  document.getElementById('categoryTitle').innerText = c.name;
+  el.innerHTML = `
+    <div class="row">
 
-  const res = await fetch(`/api/subforums/${c._id}`);
-  const data = await res.json();
+      <!-- LEFT: NAME -->
+      <div class="row-left">
+        ${s.name}
+      </div>
 
-  const div = document.getElementById('subforums');
-  div.innerHTML = '';
+      <!-- CENTER: THREAD COUNT -->
+      <div class="row-center">
+        ${s.threadCount || 0} Threads
+      </div>
 
-  data.forEach(s => {
-    const el = document.createElement('div');
-    el.className = 'box';
-    el.innerText = s.name;
-    el.onclick = () => openSubforum(s);
-    div.appendChild(el);
-  });
-}
+      <!-- RIGHT: LAST POST -->
+      <div class="row-right">
+        ${date}
+      </div>
+
+    </div>
+  `;
+
+  el.onclick = () => openSubforum(s);
+
+  div.appendChild(el);
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 9.0 - THREADS
@@ -195,7 +231,7 @@ async function openSubforum(s) {
   renderThreads();
 }
 
-// SECTION 9.1 - Render threads (WITH ACTIONS)
+// SECTION 9.1 - Render threads (NEW ROW LAYOUT)
 function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
@@ -204,15 +240,38 @@ function renderThreads() {
     const el = document.createElement('div');
     el.className = 'box';
 
-    const date = t.createdAt ? new Date(t.createdAt).toLocaleString() : "";
+    const date = t.lastActivity
+      ? new Date(t.lastActivity).toLocaleString()
+      : "";
 
     el.innerHTML = `
-      <b>${t.title}</b><br>
-      by ${t.author}<br>
-      <small>${date} • ${t.replyCount || 0} replies</small><br>
+      <div class="row">
 
-      <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
-      <button onclick="deleteThread(event,'${t._id}')">Delete</button>
+        <!-- LEFT: AUTHOR -->
+        <div class="row-left">
+          ${t.author}
+        </div>
+
+        <!-- CENTER: REPLIES -->
+        <div class="row-center">
+          ${t.replyCount || 0} Replies
+        </div>
+
+        <!-- RIGHT: LAST ACTIVITY -->
+        <div class="row-right">
+          ${date}
+        </div>
+
+      </div>
+
+      <div style="margin-top:6px;">
+        <b>${t.title}</b>
+      </div>
+
+      <div style="margin-top:6px;">
+        <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
+        <button onclick="deleteThread(event,'${t._id}')">Delete</button>
+      </div>
     `;
 
     el.addEventListener("click", () => openThread(t));
