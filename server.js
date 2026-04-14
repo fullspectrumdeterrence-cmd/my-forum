@@ -81,6 +81,38 @@ app.post('/api/threads', async (req, res) => {
   res.json({ ...thread, _id: result.insertedId });
 });
 
+app.put('/api/threads/:id/pin', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { pinned: true } }
+  );
+  res.json({ success: true });
+});
+
+app.put('/api/threads/:id/unpin', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { pinned: false } }
+  );
+  res.json({ success: true });
+});
+
+app.put('/api/threads/:id/lock', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { locked: true } }
+  );
+  res.json({ success: true });
+});
+
+app.put('/api/threads/:id/unlock', async (req, res) => {
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { locked: false } }
+  );
+  res.json({ success: true });
+});
+
 // =========================
 // POSTS (REPLIES)
 // =========================
