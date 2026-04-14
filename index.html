@@ -200,13 +200,15 @@ function renderThreads() {
 
     const time = new Date(t.lastPostTime).toLocaleString();
 
-    el.innerHTML = `
-      <b>${t.title}</b><br>
-      by ${t.author}<br><br>
+   const date = new Date(t.lastActivity || t.createdAt).toLocaleString();
 
-      Replies: ${t.replyCount}<br>
-      Last post: ${t.lastPostAuthor} – ${time}
-    `;
+el.innerHTML = `
+  <b>${t.title}</b><br>
+  by ${t.author}<br>
+  <span style="color:gray; font-size:12px;">
+    Last activity: ${date}
+  </span>
+`;
 
     el.onclick = () => openThread(t);
 
@@ -266,7 +268,14 @@ function renderPosts() {
   posts.forEach(p => {
     const el = document.createElement('div');
     el.className = 'box';
-    el.innerHTML = `<b>${p.author}</b>: ${p.text}`;
+   const date = new Date(p.createdAt).toLocaleString();
+
+el.innerHTML = `
+  <b>${p.author}</b> 
+  <span style="color:gray; font-size:12px;">(${date})</span>
+  <br>
+  ${p.text}
+`;
     div.appendChild(el);
   });
 }
