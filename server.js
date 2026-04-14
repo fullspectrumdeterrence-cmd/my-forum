@@ -51,7 +51,7 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
 app.get('/api/threads/:subforumId', async (req, res) => {
   const data = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
-    .sort({ lastActivity: -1 }) // 🔥 THIS IS THE KEY CHANGE
+    .sort({ lastActivity: -1, createdAt: -1 })
     .toArray();
 
   res.json(data);
@@ -64,15 +64,14 @@ app.post('/api/threads', async (req, res) => {
     return res.status(400).send("Missing data");
   }
 
-  const now = new Date();
+ const now = new Date();
 
- const thread = {
+const thread = {
   title,
   subforumId,
   author,
   createdAt: now,
-  lastActivity: now,
-  replyCount: 0, // 🔥 NEW
+  lastActivity: now, // 🔥 important
   pinned: false,
   locked: false
 };
@@ -141,7 +140,43 @@ app.post('/api/posts', async (req, res) => {
     createdAt: now
   };
 
-  const result = await db.collection('posts').insertOne(post);
+ app.post('/api/posts', async (req, res) => {
+  try {
+    const { threadId, text, author } = req.body;
+
+    if (!threadId || !text || !author) {
+      return res.status(400).send("Missing data");
+    }
+
+    const now = new Date();
+
+    const post = {
+      threadId,
+      text,
+      author,
+      createdAt: now
+    };
+
+    const result = await db.collection('posts').insertOne(post);
+
+    // 🔥 Update thread activity timestamp
+    await db.collection('threads').updateOne(
+      { _id: new ObjectId(threadId) },
+      {
+        $set: {
+          lastActivity: now,
+          updatedAt: now
+        }
+      }
+    );
+
+    res.json({ ...post, _id: result.insertedId });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating post");
+  }
+});
 
   // 🔥 IMPORTANT: update thread activity
 await db.collection('threads').updateOne(
