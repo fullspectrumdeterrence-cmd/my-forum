@@ -21,28 +21,21 @@
     button { margin-left: 5px; }
     small { color: #666; }
 
-    /* ROW SYSTEM */
+    /* SECTION 2.5.1 - ROW SYSTEM */
     .row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: 10px;
     }
 
     .row-left { flex: 1; text-align: left; }
     .row-center { flex: 1; text-align: center; }
-    .row-right {
-      flex: 1;
-      text-align: right;
-      font-size: 12px;
-      color: #666;
-    }
+    .row-right { flex: 1; text-align: right; font-size: 12px; color: #666; }
   </style>
 </head>
 
 <body>
 
-<h1>My Forum</h1>
+<h1 onclick="goCategories()" style="cursor:pointer;">My Forum</h1>
 
 <!-- ===================================================== -->
 <!-- SECTION 1.0 - USER SYSTEM -->
@@ -53,31 +46,36 @@
 <hr>
 
 <!-- ===================================================== -->
-<!-- SECTION 2.0 - VIEW CONTAINERS -->
+<!-- SECTION 2.6 - BREADCRUMB -->
+<!-- ===================================================== -->
+<div id="breadcrumb"></div>
+
+<!-- ===================================================== -->
+<!-- SECTION 2.0 - VIEWS -->
 <!-- ===================================================== -->
 
-<!-- SECTION 2.1 - CATEGORIES -->
+<!-- SECTION 2.1 -->
 <div id="viewCategories"></div>
 
-<!-- SECTION 2.2 - SUBFORUMS -->
+<!-- SECTION 2.2 -->
 <div id="viewSubforums" class="hidden">
   <button onclick="goCategories()">← Back</button>
   <h2 id="categoryTitle"></h2>
   <div id="subforums"></div>
 </div>
 
-<!-- SECTION 2.3 - THREADS -->
+<!-- SECTION 2.3 -->
 <div id="viewThreads" class="hidden">
   <button onclick="goSubforums()">← Back</button>
   <h2 id="subforumTitle"></h2>
 
-  <input id="threadTitleInput" placeholder="Thread title">
+  <input id="threadTitleInput">
   <button onclick="createThread()">Create</button>
 
   <div id="threads"></div>
 </div>
 
-<!-- SECTION 2.4 - POSTS -->
+<!-- SECTION 2.4 -->
 <div id="viewPosts" class="hidden">
   <button onclick="goThreads()">← Back</button>
 
@@ -92,13 +90,15 @@
 <script>
 
 ////////////////////////////////////////////////////////////////////////////////
-// SECTION 3.0 - STATE MANAGEMENT
+// SECTION 3.0 - STATE
 ////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 3.1 - ACTIVE OBJECTS
 let currentCategory = null;
 let currentSubforum = null;
 let currentThread = null;
 
+// SECTION 3.2 - DATA CACHE
 let threads = [];
 let posts = [];
 
@@ -109,14 +109,13 @@ let posts = [];
 // SECTION 4.1 - INIT USER
 const usernameInput = document.getElementById('username');
 
-const savedUser = localStorage.getItem("user");
-if (savedUser) usernameInput.value = savedUser;
+if (localStorage.getItem("user")) {
+  usernameInput.value = localStorage.getItem("user");
+}
 
 // SECTION 4.2 - SAVE USER
 function saveUser() {
-  const name = usernameInput.value.trim();
-  if (!name) return;
-  localStorage.setItem("user", name);
+  localStorage.setItem("user", usernameInput.value);
 }
 
 // SECTION 4.3 - GET USER
@@ -128,37 +127,58 @@ function getUser() {
 // SECTION 5.0 - VIEW SYSTEM
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 5.1 - SHOW VIEW (FIXED SAFE SWITCHER)
+// SECTION 5.1 - SWITCH VIEW
 function showView(view) {
-  const views = {
-    categories: "viewCategories",
-    subforums: "viewSubforums",
-    threads: "viewThreads",
-    posts: "viewPosts"
-  };
+  const views = ["Categories","Subforums","Threads","Posts"];
 
-  Object.values(views).forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.classList.add("hidden");
+  views.forEach(v => {
+    document.getElementById("view"+v).classList.add("hidden");
   });
 
-  document.getElementById(views[view]).classList.remove("hidden");
+  document.getElementById("view"+capitalize(view)).classList.remove("hidden");
+}
+
+// SECTION 5.2 - HELPER
+function capitalize(s){
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 5.3 - BREADCRUMB SYSTEM
+////////////////////////////////////////////////////////////////////////////////
+
+function updateBreadcrumb() {
+  let html = `<span onclick="goCategories()">Home</span>`;
+
+  if (currentCategory)
+    html += ` > <span onclick="openCategory(currentCategory)">${currentCategory.name}</span>`;
+
+  if (currentSubforum)
+    html += ` > <span onclick="openSubforum(currentSubforum)">${currentSubforum.name}</span>`;
+
+  if (currentThread)
+    html += ` > ${currentThread.title}`;
+
+  document.getElementById("breadcrumb").innerHTML = html;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 6.0 - INIT
 ////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 6.1 - INITIAL LOAD
 loadCategories();
+
+// SECTION 6.2 - LOAD FROM URL
+loadFromURL();
 
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 7.0 - CATEGORIES
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 7.1 - LOAD CATEGORIES
+// SECTION 7.1 - LOAD
 async function loadCategories() {
-  const res = await fetch('/api/categories');
-  const data = await res.json();
+  const data = await fetch('/api/categories').then(r=>r.json());
 
   const div = document.getElementById('viewCategories');
   div.innerHTML = '';
@@ -172,15 +192,16 @@ async function loadCategories() {
   });
 }
 
-// SECTION 7.2 - OPEN CATEGORY (RENDER SUBFORUMS)
+// SECTION 7.2 - OPEN CATEGORY
 async function openCategory(c) {
   currentCategory = c;
+  currentSubforum = null;
+  currentThread = null;
 
   showView("subforums");
   document.getElementById('categoryTitle').innerText = c.name;
 
-  const res = await fetch(`/api/subforums/${c._id}`);
-  const data = await res.json();
+  const data = await fetch(`/api/subforums/${c._id}`).then(r=>r.json());
 
   const div = document.getElementById('subforums');
   div.innerHTML = '';
@@ -189,21 +210,21 @@ async function openCategory(c) {
     const el = document.createElement('div');
     el.className = 'box';
 
-    const date = s.lastActivity
-      ? new Date(s.lastActivity).toLocaleString()
-      : "";
-
     el.innerHTML = `
       <div class="row">
         <div class="row-left">${s.name}</div>
         <div class="row-center">${s.threadCount || 0} Threads</div>
-        <div class="row-right">${date}</div>
+        <div class="row-right">${s.lastActivity ? new Date(s.lastActivity).toLocaleString() : ""}</div>
       </div>
     `;
 
     el.onclick = () => openSubforum(s);
     div.appendChild(el);
   });
+
+  // SECTION 7.2.1 - STATE UPDATE
+  updateBreadcrumb();
+  updateURL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,14 +234,18 @@ async function openCategory(c) {
 // SECTION 8.1 - OPEN SUBFORUM
 async function openSubforum(s) {
   currentSubforum = s;
+  currentThread = null;
 
   showView("threads");
   document.getElementById('subforumTitle').innerText = s.name;
 
-  const res = await fetch(`/api/threads/${s._id}`);
-  threads = await res.json();
+  threads = await fetch(`/api/threads/${s._id}`).then(r=>r.json());
 
   renderThreads();
+
+  // SECTION 8.1.1 - STATE UPDATE
+  updateBreadcrumb();
+  updateURL();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,39 +261,31 @@ function renderThreads() {
     const el = document.createElement('div');
     el.className = 'box';
 
-    const date = t.lastActivity
-      ? new Date(t.lastActivity).toLocaleString()
-      : "";
-
     el.innerHTML = `
       <div class="row">
         <div class="row-left">${t.author}</div>
         <div class="row-center">${t.replyCount || 0} Replies</div>
-        <div class="row-right">${date}</div>
+        <div class="row-right">${t.lastActivity ? new Date(t.lastActivity).toLocaleString() : ""}</div>
       </div>
 
-      <div style="margin-top:6px;"><b>${t.title}</b></div>
+      <b>${t.title}</b><br>
 
-      <div style="margin-top:6px;">
-        <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
-        <button onclick="deleteThread(event,'${t._id}')">Delete</button>
-      </div>
+      <button onclick="editThread(event,'${t._id}','${t.title}')">Edit</button>
+      <button onclick="deleteThread(event,'${t._id}')">Delete</button>
     `;
 
-    el.onclick = () => openThread(t);
+    el.addEventListener("click", () => openThread(t));
     div.appendChild(el);
   });
 }
 
 // SECTION 9.2 - CREATE THREAD
 async function createThread() {
-  const title = document.getElementById('threadTitleInput').value;
-
-  await fetch('/api/threads', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
+  await fetch('/api/threads',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
-      title,
+      title: document.getElementById('threadTitleInput').value,
       subforumId: currentSubforum._id,
       author: getUser()
     })
@@ -278,31 +295,26 @@ async function createThread() {
 }
 
 // SECTION 9.3 - EDIT THREAD
-async function editThread(e, id, oldTitle) {
+async function editThread(e,id,title){
   e.stopPropagation();
+  const t = prompt("Edit:",title);
+  if(!t) return;
 
-  const title = prompt("Edit thread title:", oldTitle);
-  if (!title) return;
-
-  await fetch(`/api/threads/${id}`, {
-    method: "PUT",
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ title })
+  await fetch(`/api/threads/${id}`,{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title:t})
   });
 
   openSubforum(currentSubforum);
 }
 
 // SECTION 9.4 - DELETE THREAD
-async function deleteThread(e, id) {
+async function deleteThread(e,id){
   e.stopPropagation();
+  if(!confirm("Delete?")) return;
 
-  if (!confirm("Delete thread?")) return;
-
-  await fetch(`/api/threads/${id}`, {
-    method: "DELETE"
-  });
-
+  await fetch(`/api/threads/${id}`,{method:'DELETE'});
   openSubforum(currentSubforum);
 }
 
@@ -311,35 +323,33 @@ async function deleteThread(e, id) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // SECTION 10.1 - OPEN THREAD
-async function openThread(t) {
+async function openThread(t){
   currentThread = t;
 
   showView("posts");
   document.getElementById('threadTitle').innerText = t.title;
 
-  const res = await fetch(`/api/posts/${t._id}`);
-  posts = await res.json();
+  posts = await fetch(`/api/posts/${t._id}`).then(r=>r.json());
 
   renderPosts();
+
+  // SECTION 10.1.1 - STATE UPDATE
+  updateBreadcrumb();
+  updateURL();
 }
 
 // SECTION 10.2 - RENDER POSTS
-function renderPosts() {
+function renderPosts(){
   const div = document.getElementById('posts');
-  div.innerHTML = '';
+  div.innerHTML='';
 
-  posts.forEach(p => {
+  posts.forEach(p=>{
     const el = document.createElement('div');
-    el.className = 'box';
+    el.className='box';
 
-    const date = p.createdAt
-      ? new Date(p.createdAt).toLocaleString()
-      : "";
-
-    el.innerHTML = `
-      <b>${p.author}</b> <small>${date}</small><br>
+    el.innerHTML=`
+      <b>${p.author}</b> <small>${new Date(p.createdAt).toLocaleString()}</small><br>
       ${p.text}<br>
-
       <button onclick="editPost(event,'${p._id}','${p.text}')">Edit</button>
       <button onclick="deletePost(event,'${p._id}')">Delete</button>
     `;
@@ -349,10 +359,10 @@ function renderPosts() {
 }
 
 // SECTION 10.3 - ADD POST
-async function addPost() {
-  await fetch('/api/posts', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
+async function addPost(){
+  await fetch('/api/posts',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       threadId: currentThread._id,
       text: document.getElementById('postText').value,
@@ -363,62 +373,79 @@ async function addPost() {
   openThread(currentThread);
 }
 
-// SECTION 10.4 - EDIT POST
-async function editPost(e, id, oldText) {
-  e.stopPropagation();
-
-  const text = prompt("Edit post:", oldText);
-  if (!text) return;
-
-  await fetch(`/api/posts/${id}`, {
-    method: "PUT",
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ text })
-  });
-
-  openThread(currentThread);
-}
-
-// SECTION 10.5 - DELETE POST
-async function deletePost(e, id) {
-  e.stopPropagation();
-
-  if (!confirm("Delete post?")) return;
-
-  await fetch(`/api/posts/${id}`, {
-    method: "DELETE"
-  });
-
-  openThread(currentThread);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 11.0 - NAVIGATION
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 11.1 - BACK TO CATEGORIES
-function goCategories() {
-  currentCategory = null;
-  currentSubforum = null;
-  currentThread = null;
+// SECTION 11.1 - HOME
+function goCategories(){
+  currentCategory=null;
+  currentSubforum=null;
+  currentThread=null;
 
   loadCategories();
   showView("categories");
+
+  updateBreadcrumb();
 }
 
-// SECTION 11.2 - BACK TO SUBFORUMS
-function goSubforums() {
-  if (!currentCategory) return;
+// SECTION 11.2 - SUBFORUM BACK
+function goSubforums(){
   openCategory(currentCategory);
 }
 
-// SECTION 11.3 - BACK TO THREADS
-function goThreads() {
-  if (!currentSubforum) return;
+// SECTION 11.3 - THREAD BACK
+function goThreads(){
   openSubforum(currentSubforum);
 }
 
-</script>
+////////////////////////////////////////////////////////////////////////////////
+// SECTION 12.0 - URL STATE
+////////////////////////////////////////////////////////////////////////////////
 
+// SECTION 12.1 - UPDATE URL
+function updateURL(){
+  let params = [];
+
+  if(currentCategory) params.push(`cat=${currentCategory._id}`);
+  if(currentSubforum) params.push(`sub=${currentSubforum._id}`);
+  if(currentThread) params.push(`thread=${currentThread._id}`);
+
+  const query = params.length ? "?" + params.join("&") : "";
+  history.replaceState(null,"",query);
+}
+
+// SECTION 12.2 - LOAD URL
+async function loadFromURL(){
+  const p = new URLSearchParams(location.search);
+
+  const catId=p.get("cat");
+  const subId=p.get("sub");
+  const threadId=p.get("thread");
+
+  if(!catId) return;
+
+  const cats = await fetch('/api/categories').then(r=>r.json());
+  const cat = cats.find(c=>c._id===catId);
+  if(!cat) return;
+
+  await openCategory(cat);
+
+  if(subId){
+    const subs = await fetch(`/api/subforums/${catId}`).then(r=>r.json());
+    const sub = subs.find(s=>s._id===subId);
+    if(!sub) return;
+
+    await openSubforum(sub);
+
+    if(threadId){
+      const ths = await fetch(`/api/threads/${subId}`).then(r=>r.json());
+      const th = ths.find(t=>t._id===threadId);
+      if(th) await openThread(th);
+    }
+  }
+}
+
+</script>
 </body>
 </html>
