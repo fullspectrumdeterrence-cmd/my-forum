@@ -113,12 +113,35 @@ app.get('/api/threads/:subforumId', async (req, res) => {
   if (!checkDB(res)) return;
 
   try {
-    const data = await db.collection('threads')
+    const threads = await db.collection('threads')
       .find({ subforumId: req.params.subforumId })
-      .sort({ pinned: -1, createdAt: -1 }) // better sorting
+      .sort({ pinned: -1, createdAt: -1 })
       .toArray();
 
-    res.json(data);
+    for (let thread of threads) {
+
+      const replyCount = await db.collection('posts')
+        .countDocuments({ threadId: thread._id.toString() });
+
+      const lastPost = await db.collection('posts')
+        .find({ threadId: thread._id.toString() })
+        .sort({ createdAt: -1 })
+        .limit(1)
+        .toArray();
+
+      thread.replyCount = replyCount;
+
+      if (lastPost.length > 0) {
+        thread.lastPostAuthor = lastPost[0].author;
+        thread.lastPostTime = lastPost[0].createdAt;
+      } else {
+        thread.lastPostAuthor = thread.author;
+        thread.lastPostTime = thread.createdAt;
+      }
+    }
+
+    res.json(threads);
+
   } catch (err) {
     console.error(err);
     res.status(500).send("Error fetching threads");
