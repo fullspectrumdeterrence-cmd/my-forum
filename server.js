@@ -113,6 +113,46 @@ app.delete('/api/threads/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// =========================
+// EDIT THREAD
+// =========================
+app.put('/api/threads/:id', async (req, res) => {
+  try {
+    const { title } = req.body;
+
+    await db.collection('threads').updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { title } }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error updating thread");
+  }
+});
+
+
+// =========================
+// DELETE THREAD
+// =========================
+app.delete('/api/threads/:id', async (req, res) => {
+  try {
+    await db.collection('threads').deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    // also delete posts inside thread
+    await db.collection('posts').deleteMany({
+      threadId: req.params.id
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error deleting thread");
+  }
+});
 
 // =========================
 // POSTS
@@ -173,6 +213,39 @@ app.delete('/api/posts/:id', async (req, res) => {
   res.json({ success: true });
 });
 
+// =========================
+// EDIT POST
+// =========================
+app.put('/api/posts/:id', async (req, res) => {
+  try {
+    await db.collection('posts').updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { text: req.body.text } }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error updating post");
+  }
+});
+
+
+// =========================
+// DELETE POST
+// =========================
+app.delete('/api/posts/:id', async (req, res) => {
+  try {
+    await db.collection('posts').deleteOne({
+      _id: new ObjectId(req.params.id)
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error deleting post");
+  }
+});
 
 // =========================
 // SEED
