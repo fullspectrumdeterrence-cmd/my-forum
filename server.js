@@ -66,15 +66,16 @@ app.post('/api/threads', async (req, res) => {
 
   const now = new Date();
 
-  const thread = {
-    title,
-    subforumId,
-    author,
-    createdAt: now,
-    lastActivity: now, // 🔥 track activity
-    pinned: false,
-    locked: false
-  };
+ const thread = {
+  title,
+  subforumId,
+  author,
+  createdAt: now,
+  lastActivity: now,
+  replyCount: 0, // 🔥 NEW
+  pinned: false,
+  locked: false
+};
 
   const result = await db.collection('threads').insertOne(thread);
   res.json({ ...thread, _id: result.insertedId });
@@ -111,10 +112,13 @@ app.post('/api/posts', async (req, res) => {
   const result = await db.collection('posts').insertOne(post);
 
   // 🔥 IMPORTANT: update thread activity
-  await db.collection('threads').updateOne(
-    { _id: new ObjectId(threadId) },
-    { $set: { lastActivity: now } }
-  );
+await db.collection('threads').updateOne(
+  { _id: new ObjectId(threadId) },
+  {
+    $set: { lastActivity: now },
+    $inc: { replyCount: 1 } // 🔥 NEW
+  }
+);
 
   res.json({ ...post, _id: result.insertedId });
 });
