@@ -31,11 +31,17 @@
     .row-center { flex: 1; text-align: center; }
     .row-right { flex: 1; text-align: right; font-size: 12px; color: #666; }
 
-    /* SECTION 2.5.2 - BREADCRUMB INTERACTIVITY */
+/* SECTION 2.5.2 - BREADCRUMB INTERACTIVITY */
+
+#breadcrumb {
+  margin-bottom: 15px;
+  font-size: 14px;
+}
 
 #breadcrumb span {
   cursor: pointer;
   color: #007BFF;
+  padding: 0 4px;
 }
 
 #breadcrumb span:hover {
@@ -323,7 +329,10 @@ function renderThreads() {
       <button onclick="deleteThread(event,'${t._id}')">Delete</button>
     `;
 
-    el.addEventListener("click", () => openThread(t));
+el.addEventListener("click", (e) => {
+  if (e.target.tagName === "BUTTON") return;
+  openThread(t);
+});
     div.appendChild(el);
   });
 }
@@ -331,6 +340,7 @@ function renderThreads() {
 // SECTION 9.2 - CREATE THREAD
 async function createThread() {
   await fetch('/api/threads',{
+    document.getElementById('threadTitleInput').value = "";
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -418,6 +428,9 @@ async function addPost(){
       author: getUser()
     })
   });
+
+  // ✅ ADD THIS LINE HERE
+  document.getElementById('postText').value = "";
 
   openThread(currentThread);
 }
