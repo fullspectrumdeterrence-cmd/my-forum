@@ -21,7 +21,9 @@
     button { margin-left: 5px; }
     small { color: #666; }
 
+    /* ===================================================== */
     /* SECTION 2.5.1 - ROW SYSTEM */
+    /* ===================================================== */
     .row {
       display: flex;
       justify-content: space-between;
@@ -31,37 +33,41 @@
     .row-center { flex: 1; text-align: center; }
     .row-right { flex: 1; text-align: right; font-size: 12px; color: #666; }
 
-/* SECTION 2.5.2 - BREADCRUMB INTERACTIVITY */
+    /* ===================================================== */
+    /* SECTION 2.5.2 - BREADCRUMB */
+    /* ===================================================== */
+    #breadcrumb {
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
 
-#breadcrumb {
-  margin-bottom: 15px;
-  font-size: 14px;
-}
+    #breadcrumb span {
+      cursor: pointer;
+      color: #007BFF;
+      padding: 0 4px;
+    }
 
-#breadcrumb span {
-  cursor: pointer;
-  color: #007BFF;
-  padding: 0 4px;
-}
+    #breadcrumb span:hover {
+      text-decoration: underline;
+    }
 
-#breadcrumb span:hover {
-  text-decoration: underline;
-}
-
-#breadcrumb span:last-child {
-  cursor: default;
-  color: black;
-  text-decoration: none;
-}
+    #breadcrumb span:last-child {
+      cursor: default;
+      color: black;
+      text-decoration: none;
+    }
   </style>
 </head>
 
 <body>
 
+<!-- ===================================================== -->
+<!-- SECTION 1.0 - HEADER -->
+<!-- ===================================================== -->
 <h1 onclick="goCategories()" style="cursor:pointer;">My Forum</h1>
 
 <!-- ===================================================== -->
-<!-- SECTION 1.0 - USER SYSTEM -->
+<!-- SECTION 1.1 - USER SYSTEM -->
 <!-- ===================================================== -->
 <input id="username" placeholder="Username">
 <button onclick="saveUser()">Save</button>
@@ -77,28 +83,28 @@
 <!-- SECTION 2.0 - VIEWS -->
 <!-- ===================================================== -->
 
-<!-- SECTION 2.1 -->
+<!-- SECTION 2.1 - CATEGORIES -->
 <div id="viewCategories"></div>
 
-<!-- SECTION 2.2 -->
+<!-- SECTION 2.2 - SUBFORUMS -->
 <div id="viewSubforums" class="hidden">
   <button onclick="goCategories()">← Back</button>
   <h2 id="categoryTitle"></h2>
   <div id="subforums"></div>
 </div>
 
-<!-- SECTION 2.3 -->
+<!-- SECTION 2.3 - THREADS -->
 <div id="viewThreads" class="hidden">
   <button onclick="goSubforums()">← Back</button>
   <h2 id="subforumTitle"></h2>
 
-  <input id="threadTitleInput">
+  <input id="threadTitleInput" placeholder="Thread title">
   <button onclick="createThread()">Create</button>
 
   <div id="threads"></div>
 </div>
 
-<!-- SECTION 2.4 -->
+<!-- SECTION 2.4 - POSTS -->
 <div id="viewPosts" class="hidden">
   <button onclick="goThreads()">← Back</button>
 
@@ -106,7 +112,7 @@
 
   <div id="posts"></div>
 
-  <textarea id="postText"></textarea>
+  <textarea id="postText" placeholder="Write your reply..."></textarea>
   <button onclick="addPost()">Reply</button>
 </div>
 
@@ -138,7 +144,9 @@ if (localStorage.getItem("user")) {
 
 // SECTION 4.2 - SAVE USER
 function saveUser() {
-  localStorage.setItem("user", usernameInput.value);
+  const name = usernameInput.value.trim();
+  if (!name) return;
+  localStorage.setItem("user", name);
 }
 
 // SECTION 4.3 - GET USER
@@ -166,47 +174,42 @@ function capitalize(s){
   return s.charAt(0).toUpperCase()+s.slice(1);
 }
 
-// SECTION 5.3 - BREADCRUMB SYSTEM (FIXED CLICK HANDLING)
-
+// SECTION 5.3 - BREADCRUMB SYSTEM
 function updateBreadcrumb() {
   const el = document.getElementById("breadcrumb");
 
   let html = `<span onclick="goCategories()">Home</span>`;
 
-  // SECTION 5.3.1 - CATEGORY
+  // 5.3.1 CATEGORY
   if (currentCategory) {
     html += ` > <span onclick="handleCategoryClick('${currentCategory._id}')">
       ${currentCategory.name}
     </span>`;
   }
 
-  // SECTION 5.3.2 - SUBFORUM (FIXED)
+  // 5.3.2 SUBFORUM
   if (currentSubforum) {
     html += ` > <span onclick="handleSubforumClick('${currentSubforum._id}')">
       ${currentSubforum.name}
     </span>`;
   }
 
-  // SECTION 5.3.3 - THREAD (NOT CLICKABLE)
+  // 5.3.3 THREAD
   if (currentThread) {
-    html += ` > <span>
-      ${currentThread.title}
-    </span>`;
+    html += ` > <span>${currentThread.title}</span>`;
   }
 
   el.innerHTML = html;
 }
 
-  // SECTION 5.4 - CATEGORY CLICK HANDLER
-
+// SECTION 5.4 - CATEGORY CLICK
 async function handleCategoryClick(catId) {
   const cats = await fetch('/api/categories').then(r => r.json());
   const cat = cats.find(c => c._id === catId);
   if (cat) openCategory(cat);
 }
 
-  // SECTION 5.5 - SUBFORUM CLICK HANDLER
-
+// SECTION 5.5 - SUBFORUM CLICK
 async function handleSubforumClick(subId) {
   if (!currentCategory) return;
 
@@ -218,20 +221,21 @@ async function handleSubforumClick(subId) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SECTION 6.0 - INIT
+// SECTION 6.0 - INIT (FIXED)
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 6.1 - INITIAL LOAD
-loadCategories();
+async function init() {
+  await loadCategories();
+  await loadFromURL();
+}
 
-// SECTION 6.2 - LOAD FROM URL
-loadFromURL();
+init();
 
 ////////////////////////////////////////////////////////////////////////////////
 // SECTION 7.0 - CATEGORIES
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 7.1 - LOAD
+// SECTION 7.1 LOAD
 async function loadCategories() {
   const data = await fetch('/api/categories').then(r=>r.json());
 
@@ -247,7 +251,7 @@ async function loadCategories() {
   });
 }
 
-// SECTION 7.2 - OPEN CATEGORY
+// SECTION 7.2 OPEN CATEGORY
 async function openCategory(c) {
   currentCategory = c;
   currentSubforum = null;
@@ -277,7 +281,6 @@ async function openCategory(c) {
     div.appendChild(el);
   });
 
-  // SECTION 7.2.1 - STATE UPDATE
   updateBreadcrumb();
   updateURL();
 }
@@ -286,7 +289,7 @@ async function openCategory(c) {
 // SECTION 8.0 - SUBFORUMS
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 8.1 - OPEN SUBFORUM
+// SECTION 8.1 OPEN SUBFORUM
 async function openSubforum(s) {
   currentSubforum = s;
   currentThread = null;
@@ -298,7 +301,6 @@ async function openSubforum(s) {
 
   renderThreads();
 
-  // SECTION 8.1.1 - STATE UPDATE
   updateBreadcrumb();
   updateURL();
 }
@@ -307,7 +309,7 @@ async function openSubforum(s) {
 // SECTION 9.0 - THREADS
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 9.1 - RENDER THREADS
+// SECTION 9.1 RENDER
 function renderThreads() {
   const div = document.getElementById('threads');
   div.innerHTML = '';
@@ -329,31 +331,36 @@ function renderThreads() {
       <button onclick="deleteThread(event,'${t._id}')">Delete</button>
     `;
 
-el.addEventListener("click", (e) => {
-  if (e.target.tagName === "BUTTON") return;
-  openThread(t);
-});
+    el.addEventListener("click", (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      openThread(t);
+    });
+
     div.appendChild(el);
   });
 }
 
-// SECTION 9.2 - CREATE THREAD
+// SECTION 9.2 CREATE THREAD
 async function createThread() {
+  const input = document.getElementById('threadTitleInput');
+  const title = input.value.trim();
+  if (!title) return;
+
   await fetch('/api/threads',{
-    document.getElementById('threadTitleInput').value = "";
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
-      title: document.getElementById('threadTitleInput').value,
+      title,
       subforumId: currentSubforum._id,
       author: getUser()
     })
   });
 
+  input.value = "";
   openSubforum(currentSubforum);
 }
 
-// SECTION 9.3 - EDIT THREAD
+// SECTION 9.3 EDIT THREAD
 async function editThread(e,id,title){
   e.stopPropagation();
   const t = prompt("Edit:",title);
@@ -368,7 +375,7 @@ async function editThread(e,id,title){
   openSubforum(currentSubforum);
 }
 
-// SECTION 9.4 - DELETE THREAD
+// SECTION 9.4 DELETE THREAD
 async function deleteThread(e,id){
   e.stopPropagation();
   if(!confirm("Delete?")) return;
@@ -381,7 +388,7 @@ async function deleteThread(e,id){
 // SECTION 10.0 - POSTS
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 10.1 - OPEN THREAD
+// SECTION 10.1 OPEN THREAD
 async function openThread(t){
   currentThread = t;
 
@@ -392,12 +399,11 @@ async function openThread(t){
 
   renderPosts();
 
-  // SECTION 10.1.1 - STATE UPDATE
   updateBreadcrumb();
   updateURL();
 }
 
-// SECTION 10.2 - RENDER POSTS
+// SECTION 10.2 RENDER POSTS
 function renderPosts(){
   const div = document.getElementById('posts');
   div.innerHTML='';
@@ -417,21 +423,23 @@ function renderPosts(){
   });
 }
 
-// SECTION 10.3 - ADD POST
+// SECTION 10.3 ADD POST
 async function addPost(){
+  const textarea = document.getElementById('postText');
+  const text = textarea.value.trim();
+  if (!text) return;
+
   await fetch('/api/posts',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       threadId: currentThread._id,
-      text: document.getElementById('postText').value,
+      text,
       author: getUser()
     })
   });
 
-  // ✅ ADD THIS LINE HERE
-  document.getElementById('postText').value = "";
-
+  textarea.value = "";
   openThread(currentThread);
 }
 
@@ -439,7 +447,6 @@ async function addPost(){
 // SECTION 11.0 - NAVIGATION
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 11.1 - HOME
 function goCategories(){
   currentCategory=null;
   currentSubforum=null;
@@ -447,16 +454,13 @@ function goCategories(){
 
   loadCategories();
   showView("categories");
-
   updateBreadcrumb();
 }
 
-// SECTION 11.2 - SUBFORUM BACK
 function goSubforums(){
   openCategory(currentCategory);
 }
 
-// SECTION 11.3 - THREAD BACK
 function goThreads(){
   openSubforum(currentSubforum);
 }
@@ -465,7 +469,6 @@ function goThreads(){
 // SECTION 12.0 - URL STATE
 ////////////////////////////////////////////////////////////////////////////////
 
-// SECTION 12.1 - UPDATE URL
 function updateURL(){
   let params = [];
 
@@ -477,7 +480,6 @@ function updateURL(){
   history.replaceState(null,"",query);
 }
 
-// SECTION 12.2 - LOAD URL
 async function loadFromURL(){
   const p = new URLSearchParams(location.search);
 
