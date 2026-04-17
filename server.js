@@ -1,8 +1,29 @@
+// =========================
+// SECTION 0 - CORE IMPORTS
+// =========================
 const express = require('express');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
 const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// =========================
+// SECTION 0.1 - MIDDLEWARE
+// =========================
+app.use(express.json());
+app.use(express.static(__dirname));
+
+// =========================
+// SECTION 0.2 - SESSION SETUP
+// =========================
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // set true later when using HTTPS
+}));
 
 // =========================
 // SECTION 1 - CONNECT DB
@@ -28,6 +49,35 @@ async function connectDB() {
 
 connectDB();
 
+// =========================
+// SECTION 1.1 - CREATE ADMIN (RUN ONCE)
+// =========================
+app.get('/api/create-admin', async (req, res) => {
+  try {
+    if (!db) return res.status(500).send("DB not ready");
+
+    if (req.query.key !== process.env.ADMIN_SETUP_KEY) {
+      return res.status(403).send("Forbidden");
+    }
+
+    const existing = await db.collection('users').findOne({ username: "admin" });
+    if (existing) return res.send("Admin already exists");
+
+    const hash = await bcrypt.hash("admin123", 10);
+
+    await db.collection('users').insertOne({
+      username: "admin",
+      password: hash,
+      role: "admin"
+    });
+
+    res.send("Admin created");
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating admin");
+  }
+});
 
 // =========================
 // SECTION 2 - CATEGORIES
