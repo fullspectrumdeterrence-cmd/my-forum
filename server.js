@@ -1,6 +1,6 @@
-// =========================
-// SECTION 0 - CORE IMPORTS
-// =========================
+// =====================================================
+// SECTION 0 - IMPORTS
+// =====================================================
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
@@ -9,34 +9,31 @@ const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// =========================
-// SECTION 0.1 - MIDDLEWARE
-// =========================
+// =====================================================
+// SECTION 1 - MIDDLEWARE
+// =====================================================
+
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// =========================
-// SECTION 0.2 - SESSION SETUP
-// =========================
+// 1.1 - SESSION SETUP
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
+  secret: 'super-secret-key', // CHANGE IN PRODUCTION
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false } // set true later when using HTTPS
+  cookie: { secure: false }
 }));
 
-// =========================
-// SECTION 1 - CONNECT DB
-// =========================
+// =====================================================
+// SECTION 2 - DATABASE CONNECTION
+// =====================================================
 
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
 let db;
 
-app.use(express.json());
-app.use(express.static(__dirname));
-
+// 2.1 CONNECT DB
 async function connectDB() {
   try {
     await client.connect();
@@ -49,70 +46,100 @@ async function connectDB() {
 
 connectDB();
 
-// =========================
-// SECTION 1.1 - CREATE ADMIN (RUN ONCE)
-// =========================
+// =====================================================
+// SECTION 3 - AUTH (ADMIN SYSTEM)
+// =====================================================
+
+// 3.1 CREATE ADMIN (RUN ONCE ONLY)
 app.get('/api/create-admin', async (req, res) => {
-  try {
-    if (!db) return res.status(500).send("DB not ready");
+  const existing = await db.collection('users').findOne({ username: "admin" });
 
-    if (req.query.key !== process.env.ADMIN_SETUP_KEY) {
-      return res.status(403).send("Forbidden");
-    }
-
-    const existing = await db.collection('users').findOne({ username: "admin" });
-    if (existing) return res.send("Admin already exists");
-
-    const hash = await bcrypt.hash("admin123", 10);
-
-    await db.collection('users').insertOne({
-      username: "admin",
-      password: hash,
-      role: "admin"
-    });
-
-    res.send("Admin created");
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error creating admin");
+  if (existing) {
+    return res.send("Admin already exists");
   }
+
+  const hash = await bcrypt.hash("admin123", 10);
+
+  await db.collection('users').insertOne({
+    username: "admin",
+    password: hash,
+    role: "admin"
+  });
+
+  res.send("Admin created");
 });
 
-// =========================
-// SECTION 2 - CATEGORIES
-// =========================
+// 3.2 LOGIN
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
 
-// 2.1 GET categories
+  const user = await db.collection('users').findOne({ username });
+
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const match = await bcrypt.compare(password, user.password);
+
+  if (!match) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  req.session.user = {
+    id: user._id,
+    username: user.username,
+    role: user.role
+  };
+
+  res.json({ success: true, role: user.role });
+});
+
+// 3.3 CURRENT USER
+app.get('/api/me', (req, res) => {
+  if (!req.session.user) {
+    return res.json({ loggedIn: false });
+  }
+
+  res.json({
+    loggedIn: true,
+    user: req.session.user
+  });
+});
+
+// =====================================================
+// SECTION 4 - CATEGORIES
+// =====================================================
+
+// 4.1 GET categories
 app.get('/api/categories', async (req, res) => {
   const data = await db.collection('categories').find().toArray();
   res.json(data);
 });
 
-// 2.2 CREATE category
+// 4.2 CREATE category
 app.post('/api/categories', async (req, res) => {
   const result = await db.collection('categories').insertOne({
     name: req.body.name
   });
 
-  res.json({ _id: result.insertedId, name: req.body.name });
+  res.json({
+    _id: result.insertedId,
+    name: req.body.name
+  });
 });
 
+// =====================================================
+// SECTION 5 - SUBFORUMS
+// =====================================================
 
-// =========================
-// SECTION 3 - SUBFORUMS
-// =========================
-
-// 3.1 GET subforums (WITH THREAD COUNT FIX)
+// 5.1 GET subforums
 app.get('/api/subforums/:categoryId', async (req, res) => {
   try {
     const subforums = await db.collection('subforums')
       .find({ categoryId: req.params.categoryId })
       .toArray();
 
-    const threads = await db.collection('threads')
-      .find()
-      .toArray();
+    const threads = await db.collection('threads').find().toArray();
 
     const enriched = subforums.map(s => {
       const count = threads.filter(t =>
@@ -133,7 +160,7 @@ app.get('/api/subforums/:categoryId', async (req, res) => {
   }
 });
 
-// 3.2 CREATE subforum
+// 5.2 CREATE subforum
 app.post('/api/subforums', async (req, res) => {
   const result = await db.collection('subforums').insertOne({
     name: req.body.name,
@@ -147,12 +174,11 @@ app.post('/api/subforums', async (req, res) => {
   });
 });
 
+// =====================================================
+// SECTION 6 - THREADS
+// =====================================================
 
-// =========================
-// SECTION 4 - THREADS
-// =========================
-
-// 4.1 GET threads (sorted by activity)
+// 6.1 GET threads
 app.get('/api/threads/:subforumId', async (req, res) => {
   const data = await db.collection('threads')
     .find({ subforumId: req.params.subforumId })
@@ -162,7 +188,7 @@ app.get('/api/threads/:subforumId', async (req, res) => {
   res.json(data);
 });
 
-// 4.2 CREATE thread
+// 6.2 CREATE thread
 app.post('/api/threads', async (req, res) => {
   const now = new Date();
 
@@ -172,9 +198,7 @@ app.post('/api/threads', async (req, res) => {
     author: req.body.author,
     createdAt: now,
     lastActivity: now,
-    replyCount: 0,
-    pinned: false,
-    locked: false
+    replyCount: 0
   };
 
   const result = await db.collection('threads').insertOne(thread);
@@ -182,45 +206,34 @@ app.post('/api/threads', async (req, res) => {
   res.json({ ...thread, _id: result.insertedId });
 });
 
-// 4.3 EDIT thread
+// 6.3 EDIT thread
 app.put('/api/threads/:id', async (req, res) => {
-  try {
-    await db.collection('threads').updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: { title: req.body.title } }
-    );
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { title: req.body.title } }
+  );
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error updating thread");
-  }
+  res.json({ success: true });
 });
 
-// 4.4 DELETE thread
+// 6.4 DELETE thread
 app.delete('/api/threads/:id', async (req, res) => {
-  try {
-    await db.collection('threads').deleteOne({
-      _id: new ObjectId(req.params.id)
-    });
+  await db.collection('threads').deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
 
-    await db.collection('posts').deleteMany({
-      threadId: req.params.id
-    });
+  await db.collection('posts').deleteMany({
+    threadId: req.params.id
+  });
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error deleting thread");
-  }
+  res.json({ success: true });
 });
 
+// =====================================================
+// SECTION 7 - POSTS
+// =====================================================
 
-// =========================
-// SECTION 5 - POSTS
-// =========================
-
-// 5.1 GET posts
+// 7.1 GET posts
 app.get('/api/posts/:threadId', async (req, res) => {
   const data = await db.collection('posts')
     .find({ threadId: req.params.threadId })
@@ -230,91 +243,52 @@ app.get('/api/posts/:threadId', async (req, res) => {
   res.json(data);
 });
 
-// 5.2 CREATE post (with thread update)
+// 7.2 CREATE post
 app.post('/api/posts', async (req, res) => {
-  try {
-    const now = new Date();
+  const now = new Date();
 
-    const post = {
-      threadId: req.body.threadId,
-      text: req.body.text,
-      author: req.body.author,
-      createdAt: now
-    };
+  const post = {
+    threadId: req.body.threadId,
+    text: req.body.text,
+    author: req.body.author,
+    createdAt: now
+  };
 
-    const result = await db.collection('posts').insertOne(post);
+  const result = await db.collection('posts').insertOne(post);
 
-    // update thread metadata
-    await db.collection('threads').updateOne(
-      { _id: new ObjectId(req.body.threadId) },
-      {
-        $set: { lastActivity: now },
-        $inc: { replyCount: 1 }
-      }
-    );
+  await db.collection('threads').updateOne(
+    { _id: new ObjectId(req.body.threadId) },
+    {
+      $set: { lastActivity: now },
+      $inc: { replyCount: 1 }
+    }
+  );
 
-    res.json({ ...post, _id: result.insertedId });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error creating post");
-  }
+  res.json({ ...post, _id: result.insertedId });
 });
 
-// 5.3 EDIT post
+// 7.3 EDIT post
 app.put('/api/posts/:id', async (req, res) => {
-  try {
-    await db.collection('posts').updateOne(
-      { _id: new ObjectId(req.params.id) },
-      { $set: { text: req.body.text } }
-    );
+  await db.collection('posts').updateOne(
+    { _id: new ObjectId(req.params.id) },
+    { $set: { text: req.body.text } }
+  );
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error updating post");
-  }
+  res.json({ success: true });
 });
 
-// 5.4 DELETE post
+// 7.4 DELETE post
 app.delete('/api/posts/:id', async (req, res) => {
-  try {
-    await db.collection('posts').deleteOne({
-      _id: new ObjectId(req.params.id)
-    });
+  await db.collection('posts').deleteOne({
+    _id: new ObjectId(req.params.id)
+  });
 
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error deleting post");
-  }
+  res.json({ success: true });
 });
 
-
-// =========================
-// SECTION 6 - SEED
-// =========================
-
-app.get('/api/seed', async (req, res) => {
-  await db.collection('categories').deleteMany({});
-  await db.collection('subforums').deleteMany({});
-
-  const cat1 = await db.collection('categories').insertOne({ name: "General" });
-  const cat2 = await db.collection('categories').insertOne({ name: "Defence" });
-
-  await db.collection('subforums').insertMany([
-    { name: "Announcements", categoryId: cat1.insertedId.toString() },
-    { name: "Introductions", categoryId: cat1.insertedId.toString() },
-    { name: "Military News", categoryId: cat2.insertedId.toString() }
-  ]);
-
-  res.send("Seeded categories + subforums");
-});
-
-
-// =========================
-// SECTION 7 - START SERVER
-// =========================
+// =====================================================
+// SECTION 8 - START SERVER
+// =====================================================
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
