@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Panel</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f5f5f5;
+      margin: 0;
+    }
+
+    .login {
+      width: 300px;
+      margin: 100px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+
+    .dashboard {
+      display: none;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 8px;
+      margin-top: 5px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .row {
+      display: flex;
+      gap: 20px;
+    }
+
+    .col {
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginBox">
+  <h2>Admin Login</h2>
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard" id="dashboard">
+
+  <h1>Admin Dashboard</h1>
+  <button onclick="logout()">Logout</button>
+
+  <div class="row">
+
+    <div class="col card">
+      <h3>Create Category</h3>
+      <input id="catName" placeholder="Category name">
+      <button onclick="createCategory()">Create</button>
+    </div>
+
+    <div class="col card">
+      <h3>Create Subforum</h3>
+      <input id="subName" placeholder="Subforum name">
+      <input id="subCatId" placeholder="Category ID">
+      <button onclick="createSubforum()">Create</button>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <h3>Categories</h3>
+    <div id="categories"></div>
+  </div>
+
+</div>
+
+<script>
+
+// =========================
+// LOGIN
+// =========================
+
+async function login() {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      username: username.value,
+      password: password.value
+    })
+  });
+
+  const data = await res.json();
+
+  if (data.success) {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    loadCategories();
+  } else {
+    alert("Login failed");
+  }
+}
+
+// =========================
+// LOGOUT
+// =========================
+
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
+}
+
+// =========================
+// LOAD CATEGORIES
+// =========================
+
+async function loadCategories() {
+  const data = await fetch('/api/categories').then(r => r.json());
+
+  document.getElementById('categories').innerHTML =
+    data.map(c => `<div>${c.name} (${c._id})</div>`).join('');
+}
+
+// =========================
+// CREATE CATEGORY
+// =========================
+
+async function createCategory() {
+  await fetch('/api/categories', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name: catName.value })
+  });
+
+  loadCategories();
+}
+
+// =========================
+// CREATE SUBFORUM
+// =========================
+
+async function createSubforum() {
+  await fetch('/api/subforums', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      name: subName.value,
+      categoryId: subCatId.value
+    })
+  });
+
+  alert("Subforum created");
+}
+
+</script>
+
+</body>
+</html>
